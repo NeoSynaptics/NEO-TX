@@ -1,1 +1,1 @@
-"""AlchemyGoldOS bridge — HTTP + WebSocket client to port 8000."""
+"""Alchemy bridge — HTTP + WebSocket client to port 8000."""

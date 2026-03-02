@@ -1,1 +1,1 @@
-"""Model A — LLM planner (intent parsing + task decomposition)."""
+"""Task planner — intent parsing + task decomposition via Alchemy API."""

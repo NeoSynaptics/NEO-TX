@@ -9,35 +9,61 @@ Every existing computer-use agent hijacks the user's screen. NEO-TX doesn't. The
 ```
 You: "Hey Neo, send an email to my work with my hours this week."
 
-NEO-TX:
-1. Opens a browser in the hidden shadow desktop
-2. Navigates to webmail, composes the email
-3. Pauses before clicking "Send" → asks for your approval
-4. You approve (click, voice "yes", or inspect via viewport)
-5. Email sent. You never left your CAD/IDE/browser.
+Alchemy (voice):
+1. Whisper STT captures your speech
+2. 14B interprets intent → "needs GUI" → routes to NEO-TX
+
+NEO-TX (shadow desktop):
+3. Opens a browser in the hidden shadow desktop
+4. UI-TARS-72B analyzes screenshots, clicks and types
+5. Pauses before clicking "Send" → asks for your approval
+6. You approve (tray widget or voice "yes")
+7. Email sent. You never left your CAD/IDE/browser.
 ```
 
 A small tray icon sits in your system tray. You can:
 - **Ignore it** — keep working, the AI finishes in the background
 - **Glance** — a notification popup shows when a task is ready
 - **Click** — opens a viewport showing the shadow desktop live
-- **Talk** — voice commands for hands-free operation
+- **Talk** — voice commands handled by Alchemy, routed here
 
 ## Architecture
 
 ```
 Windows 11 Host                              WSL2 Ubuntu
 ┌──────────────────────────┐    localhost    ┌──────────────────────────┐
-│  NEO-TX (tray + server)  │◄──────────────►│  Xvfb (virtual desktop)  │
-│  AlchemyGoldOS (:8000)   │◄──────────────►│  Fluxbox + x11vnc        │
-│  Ollama (local LLM)      │                 │  noVNC + Firefox/apps    │
+│                          │    :6080        │                          │
+│  Alchemy (:8000)         │                 │  Xvfb (:99)             │
+│   ├─ voice pipeline      │                 │   + Fluxbox (WM)        │
+│   ├─ model routing       │                 │   + Firefox, apps       │
+│   └─ Ollama (models)     │                 │                          │
+│                          │◄──────────────►│  x11vnc (:5900)          │
+│  NEO-TX (:8100)          │◄──────────────►│  noVNC (:6080)           │
+│   ├─ agent loop          │                 │                          │
+│   ├─ tray widget         │    WSL bridge  │  xdotool (actions)       │
+│   ├─ constitution        │───────────────►│  scrot (screenshots)     │
+│   └─ task planner        │                 │                          │
 └──────────────────────────┘                 └──────────────────────────┘
 ```
 
-- **Shadow Desktop**: Xvfb + Fluxbox + x11vnc + noVNC in WSL2
-- **Model A** (LLM Planner): Ollama via AlchemyGoldOS — understands intent, decomposes tasks
-- **Model B** (Visuomotor Agent): Claude Computer Use API → migrates to local vision model
-- **Defense Constitution**: 3-tier approval gates (AUTO / NOTIFY / APPROVE)
+### What Lives Where
+
+| Concern | Where | Why |
+|---------|-------|-----|
+| Voice (STT/TTS) | **Alchemy** | General I/O, uses fast 14B GPU |
+| Model routing | **Alchemy** | Shared across all tools |
+| Shadow desktop | **NEO-TX** | WSL2 + Xvfb, desktop-specific |
+| Agent loop | **NEO-TX** | Screenshot → reason → act cycle |
+| Approval gates | **NEO-TX** | Action safety, tray integration |
+| Tray widget | **NEO-TX** | Desktop UI element |
+
+### Model Split
+
+| Model | Hardware | Role | Called By |
+|-------|----------|------|-----------|
+| **UI-TARS-72B** | CPU (128GB RAM) | GUI agent — screenshot → action JSON | NEO-TX via Alchemy API |
+| **Qwen2.5-Coder-14B** | GPU (12GB VRAM) | Planner, reasoning, voice interpretation | Alchemy directly |
+| **Qwen3-8B** | GPU (swapped) | Fast trivial responses | Alchemy directly |
 
 ## Quick Start
 
@@ -46,7 +72,7 @@ Windows 11 Host                              WSL2 Ubuntu
 git clone https://github.com/NeoSynaptics/NEO-TX.git
 cd NEO-TX
 
-# 2. Install Python deps
+# 2. Install
 pip install -e ".[all,dev]"
 
 # 3. Setup WSL2 shadow desktop
@@ -66,21 +92,21 @@ make demo
 
 - Windows 11 Pro with WSL2 + Ubuntu
 - Python 3.12+
-- AlchemyGoldOS running on port 8000
+- [Alchemy](https://github.com/NeoSynaptics/Alchemy) running on port 8000
 - RTX 4070 (12GB VRAM) or equivalent
+- 128GB RAM recommended (for UI-TARS-72B on CPU)
 
 ## Project Structure
 
 ```
 neotx/
-├── shadow/         # Phase 1: Shadow Desktop (WSL2 + Xvfb)
-├── agent/          # Phase 2: Model B (visuomotor agent loop)
+├── shadow/         # Shadow Desktop (WSL2 + Xvfb)
+├── agent/          # Model B (visuomotor agent loop)
 ├── constitution/   # Defense Constitution (approval gates)
-├── tray/           # Phase 3: PyQt6 system tray + viewport
-├── voice/          # Phase 4: Whisper STT + Piper TTS
-├── planner/        # Phase 5: Model A (intent + decomposition)
-├── router/         # Phase 5: Task routing (API vs shadow)
-├── bridge/         # AlchemyGoldOS integration (HTTP + WS)
+├── tray/           # PyQt6 system tray + viewport
+├── planner/        # Intent + task decomposition (via Alchemy API)
+├── router/         # Task routing (API vs shadow)
+├── bridge/         # Alchemy integration (HTTP + WS)
 └── server.py       # FastAPI orchestrator (port 8100)
 ```
 
@@ -89,11 +115,20 @@ neotx/
 | Phase | What | When |
 |-------|------|------|
 | 1 | Shadow Desktop PoC (Xvfb + noVNC in WSL2) | Week 1-2 |
-| 2 | Model B (Claude Computer Use agent loop) | Week 3-4 |
-| 3 | Tray Widget & Viewport (PyQt6 + noVNC) | Week 5-6 |
-| 4 | Voice Interface (Whisper + Piper + wake word) | Week 7-8 |
-| 5 | Model A & Task Router (Ollama planner) | Week 9-10 |
-| 6 | Local Model B (Qwen2.5-VL, no cloud) | Week 11-14 |
+| 2 | Agent Loop + UI-TARS (local vision, screenshot → act) | Week 3-4 |
+| 3 | Defense Constitution (AUTO / NOTIFY / APPROVE gates) | Week 5-6 |
+| 4 | Tray Widget & Viewport (PyQt6 + noVNC) | Week 7-8 |
+| 5 | Task Planner & Router (via Alchemy API) | Week 9-10 |
+
+## Defense Constitution
+
+Every agent action goes through a 3-tier gate:
+
+- **AUTO**: click, type, scroll, screenshot — execute silently
+- **NOTIFY**: open app, download, create file — execute + notify user
+- **APPROVE**: send email, delete file, submit form, purchase — pause + ask user
+
+Non-bypassable. Every action logged to JSONL audit trail.
 
 ## License
 

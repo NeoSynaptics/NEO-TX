@@ -20,34 +20,19 @@ dependencies = [
     "httpx",
     "websockets",
     "aiofiles",
+    "Pillow",
 ]
 
 [project.optional-dependencies]
-agent = [
-    "anthropic>=0.39.0",
-    "Pillow",
-]
 tray = [
     "PyQt6",
     "PyQt6-WebEngine",
 ]
-voice = [
-    "faster-whisper",
-    "piper-tts",
-    "openwakeword",
-    "sounddevice",
-    "webrtcvad",
-]
 planner = [
     "chromadb",
 ]
-local-vision = [
-    "transformers",
-    "torch",
-    "accelerate",
-]
 all = [
-    "neo-tx[agent,tray,voice,planner,local-vision]",
+    "neo-tx[tray,planner]",
 ]
 dev = [
     "pytest",
@@ -62,7 +47,7 @@ testpaths = ["tests"]
 markers = [
     "live: tests requiring running WSL2 + shadow desktop",
     "gpu: tests requiring GPU for vision model",
-    "integration: tests requiring AlchemyGoldOS running",
+    "integration: tests requiring Alchemy running",
 ]
 
 [tool.ruff]

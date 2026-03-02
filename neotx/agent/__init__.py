@@ -1,1 +1,1 @@
-"""Model B — Visuomotor agent (screenshot → reason → act → observe)."""
+"""Visuomotor agent — screenshot → UI-TARS (via Alchemy) → act → observe."""

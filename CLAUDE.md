@@ -1,23 +1,30 @@
 # NEO-TX — Claude Session Guide
 
 ## What This Is
-Shadow Desktop system — AI operates a hidden virtual desktop (WSL2 + Xvfb) while the user keeps their screen. Connects to AlchemyGoldOS backend (port 8000) for LLM routing, auth, and WebSocket relay.
+Shadow Desktop system — AI operates a hidden virtual desktop (WSL2 + Xvfb) while the user keeps their screen. Connects to Alchemy backend (port 8000) for LLM routing, vision analysis, and voice pipeline.
 
 ## Key Paths
 - Config: `config/settings.py` (Pydantic Settings, port 8100)
 - Server: `neotx/server.py` (FastAPI orchestrator)
 - Shadow Desktop: `neotx/shadow/` (WSL2 bridge, controller, health)
-- Agent Loop: `neotx/agent/loop.py` (screenshot → reason → act → observe)
-- Constitution: `neotx/constitution/gates.py` (AUTO / NOTIFY / APPROVE)
+- Agent Loop: `neotx/agent/` (screenshot → reason → act → observe)
+- Constitution: `neotx/constitution/` (AUTO / NOTIFY / APPROVE gates)
+- Tray: `neotx/tray/` (PyQt6 system tray + noVNC viewport)
+- Planner: `neotx/planner/` (intent + task decomposition via Alchemy)
+- Bridge: `neotx/bridge/` (HTTP + WS client to Alchemy)
 - WSL2 Scripts: `wsl/` (setup, start, stop, health)
 - Full Plan: `docs/PLAN.md`
 
-## AlchemyGoldOS Integration
-NEO-TX is a **client** of AlchemyGoldOS (port 8000). It does NOT create its own Ollama connection.
-- LLM routing: `POST http://localhost:8000/chat/completions`
-- Project registry: `POST http://localhost:8000/director/projects/register`
-- WebSocket: `ws://localhost:8000/ws/chat?token=...`
+## Alchemy Integration
+NEO-TX is a **client** of Alchemy (port 8000). It does NOT run models directly.
+- LLM routing: `POST http://localhost:8000/chat`
+- Vision analysis: `POST http://localhost:8000/vision/analyze`
 - Auth token: Bearer token from `.env`
+
+## What NEO-TX Does NOT Own
+- **Voice** — Alchemy handles STT/TTS/wake word. NEO-TX receives pre-parsed intent.
+- **Models** — Alchemy manages Ollama. NEO-TX requests inference via API.
+- **Routing** — Alchemy decides which model. NEO-TX only handles shadow-desktop tasks.
 
 ## Commands
 ```bash
