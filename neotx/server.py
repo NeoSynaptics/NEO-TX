@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 app = FastAPI(
     title="NEO-TX",
-    description="Shadow Desktop — AI operates a hidden virtual desktop while you keep yours",
+    description="Smart AI interface — voice, conversation, approval gates, tray widget",
     version="0.1.0",
 )
 
