@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "neo-tx"
+version = "0.1.0"
+description = "Shadow Desktop — AI operates a hidden virtual desktop while you keep yours"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    { name = "Daniel", email = "daniel@neosynaptics.com" },
+]
+
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings",
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
+    "websockets",
+    "aiofiles",
+]
+
+[project.optional-dependencies]
+agent = [
+    "anthropic>=0.39.0",
+    "Pillow",
+]
+tray = [
+    "PyQt6",
+    "PyQt6-WebEngine",
+]
+voice = [
+    "faster-whisper",
+    "piper-tts",
+    "openwakeword",
+    "sounddevice",
+    "webrtcvad",
+]
+planner = [
+    "chromadb",
+]
+local-vision = [
+    "transformers",
+    "torch",
+    "accelerate",
+]
+all = [
+    "neo-tx[agent,tray,voice,planner,local-vision]",
+]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-qt",
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "live: tests requiring running WSL2 + shadow desktop",
+    "gpu: tests requiring GPU for vision model",
+    "integration: tests requiring AlchemyGoldOS running",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
