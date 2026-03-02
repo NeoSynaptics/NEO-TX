@@ -1,50 +1,36 @@
 # NEO-TX — Claude Session Guide
 
 ## What This Is
-Shadow Desktop system — AI operates a hidden virtual desktop (WSL2 + Xvfb) while the user keeps their screen. Connects to Alchemy backend (port 8000) for LLM routing, vision analysis, and voice pipeline.
+Smart AI interface — the user-facing layer. Voice, fast GPU models, tray widget, approval gates. Delegates heavy GUI work to Alchemy (CPU-side shadow desktop) via API.
 
 ## Key Paths
-- Config: `config/settings.py` (Pydantic Settings, port 8100)
+- Config: `config/settings.py` (port 8100, GPU models, voice)
 - Server: `neotx/server.py` (FastAPI orchestrator)
-- Shadow Desktop: `neotx/shadow/` (WSL2 bridge, controller, health)
-- Agent Loop: `neotx/agent/` (screenshot → reason → act → observe)
+- Voice: `neotx/voice/` (wake word, Whisper STT, Piper TTS)
+- Models: `neotx/models/` (14B conversational + small specialized, GPU)
 - Constitution: `neotx/constitution/` (AUTO / NOTIFY / APPROVE gates)
 - Tray: `neotx/tray/` (PyQt6 system tray + noVNC viewport)
-- Planner: `neotx/planner/` (intent + task decomposition via Alchemy)
+- Planner: `neotx/planner/` (task decomposition via Alchemy)
+- Router: `neotx/router/` (direct answer vs shadow desktop)
 - Bridge: `neotx/bridge/` (HTTP + WS client to Alchemy)
-- WSL2 Scripts: `wsl/` (setup, start, stop, health)
-- Full Plan: `docs/PLAN.md`
 
-## Alchemy Integration
-NEO-TX is a **client** of Alchemy (port 8000). It does NOT run models directly.
-- LLM routing: `POST http://localhost:8000/chat`
-- Vision analysis: `POST http://localhost:8000/vision/analyze`
-- Auth token: Bearer token from `.env`
+## GPU Models (owned by NEO-TX)
+- **14B conversational** → GPU (12GB VRAM) → semantic understanding, user interaction
+- **Whisper large-v3** → GPU (on-demand, ~3GB) → speech-to-text
+- **Small specialized** → GPU (on-demand, ~2B) → specific fast tasks
+- **Piper TTS** → CPU (~50MB) → text-to-speech
 
 ## What NEO-TX Does NOT Own
-- **Voice** — Alchemy handles STT/TTS/wake word. NEO-TX receives pre-parsed intent.
-- **Models** — Alchemy manages Ollama. NEO-TX requests inference via API.
-- **Routing** — Alchemy decides which model. NEO-TX only handles shadow-desktop tasks.
+- Shadow desktop (WSL2 + Xvfb) → Alchemy
+- Vision agent (UI-TARS-72B) → Alchemy
+- Agent loop (screenshot → click) → Alchemy
+
+## Alchemy Integration
+NEO-TX sends GUI tasks to Alchemy (port 8000). Alchemy runs the shadow desktop and vision agent. For APPROVE-tier actions, Alchemy pauses and asks NEO-TX for approval.
 
 ## Commands
 ```bash
-make shadow-setup    # Install Xvfb/Fluxbox/x11vnc/noVNC in WSL2
-make shadow-start    # Start shadow desktop
-make shadow-stop     # Stop shadow desktop
-make shadow-health   # Check all services
-make test            # Run pytest
-make demo            # Run Phase 1 demo
-make server          # Start NEO-TX FastAPI on :8100
+make dev      # Install all deps
+make test     # Run pytest
+make server   # Start NEO-TX on :8100
 ```
-
-## Architecture
-- Shadow desktop runs inside WSL2 Ubuntu (Xvfb :99 + Fluxbox + x11vnc + noVNC)
-- Windows host runs: NEO-TX Python orchestrator + PyQt6 tray widget
-- Communication: `wsl -d Ubuntu -- bash -c "DISPLAY=:99 xdotool ..."` for actions
-- Screenshots: `scrot` inside WSL2 → PNG bytes piped to Windows
-- Viewport: noVNC at `http://localhost:6080/vnc.html`
-
-## Defense Constitution Tiers
-- **AUTO**: click, type, scroll, screenshot — execute silently
-- **NOTIFY**: open app, download, create file — execute + notify
-- **APPROVE**: send email, delete file, submit form, purchase — pause + ask user

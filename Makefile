@@ -1,4 +1,4 @@
-.PHONY: install dev shadow-setup shadow-start shadow-stop shadow-health test demo
+.PHONY: install dev test server
 
 # Install core dependencies
 install:
@@ -8,29 +8,9 @@ install:
 dev:
 	pip install -e ".[all,dev]"
 
-# WSL2 shadow desktop setup
-shadow-setup:
-	wsl -d Ubuntu -- bash -c "cd /mnt/c/Users/info/GitHub/NEO-TX && bash wsl/setup.sh"
-
-# Start shadow desktop
-shadow-start:
-	wsl -d Ubuntu -- bash -c "cd /mnt/c/Users/info/GitHub/NEO-TX && bash wsl/start_shadow.sh"
-
-# Stop shadow desktop
-shadow-stop:
-	wsl -d Ubuntu -- bash -c "cd /mnt/c/Users/info/GitHub/NEO-TX && bash wsl/stop_shadow.sh"
-
-# Check shadow desktop health
-shadow-health:
-	wsl -d Ubuntu -- bash -c "cd /mnt/c/Users/info/GitHub/NEO-TX && bash wsl/health_check.sh"
-
 # Run tests
 test:
 	pytest tests/ -v
-
-# Run Phase 1 demo
-demo:
-	python scripts/demo.py
 
 # Run NEO-TX server
 server:

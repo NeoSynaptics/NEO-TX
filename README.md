@@ -1,69 +1,80 @@
-# NEO-TX — Shadow Desktop
+# NEO-TX
 
-**AI operates a hidden virtual desktop while you keep yours.**
+**Smart AI interface — voice, fast GPU models, tray widget, approval gates.**
 
-Every existing computer-use agent hijacks the user's screen. NEO-TX doesn't. The AI gets its own hidden virtual desktop — a "shadow" of the real desktop — where it opens apps, fills forms, navigates browsers, and completes tasks. The user never sees any of this unless they choose to.
+NEO-TX is the user-facing layer. It talks to you (voice), understands you (14B conversational model on GPU), and delegates heavy GUI work to [Alchemy](https://github.com/NeoSynaptics/Alchemy) (CPU-side shadow desktop). You never interact with Alchemy directly — NEO-TX is your interface.
 
 ## How It Works
 
 ```
 You: "Hey Neo, send an email to my work with my hours this week."
 
-Alchemy (voice):
-1. Whisper STT captures your speech
-2. 14B interprets intent → "needs GUI" → routes to NEO-TX
-
-NEO-TX (shadow desktop):
-3. Opens a browser in the hidden shadow desktop
-4. UI-TARS-72B analyzes screenshots, clicks and types
-5. Pauses before clicking "Send" → asks for your approval
-6. You approve (tray widget or voice "yes")
-7. Email sent. You never left your CAD/IDE/browser.
+NEO-TX (GPU, fast):
+1. Wake word detected → Whisper STT → text
+2. 14B model interprets: "needs GUI work (email client)"
+3. Sends task to Alchemy → shadow desktop starts working
+4. Alchemy's agent loop fills in the email form...
+5. Before clicking "Send" → approval request comes back to NEO-TX
+6. Tray popup: "Send email to work@company.com?" → you approve
+7. Alchemy clicks Send. Done. You never left your CAD/IDE/browser.
 ```
 
-A small tray icon sits in your system tray. You can:
-- **Ignore it** — keep working, the AI finishes in the background
-- **Glance** — a notification popup shows when a task is ready
-- **Click** — opens a viewport showing the shadow desktop live
-- **Talk** — voice commands handled by Alchemy, routed here
+## What NEO-TX Owns
+
+| Responsibility | Detail |
+|----------------|--------|
+| **Voice** | Whisper STT + Piper TTS + wake word ("Hey Neo") |
+| **14B Conversational Model** | Fast semantic understanding on GPU (~9GB VRAM) |
+| **Small Specialized Models** | Fast GPU models for specific tasks (~2B, hot-swap) |
+| **Tray Widget** | PyQt6 system tray + noVNC viewport into shadow desktop |
+| **Approval Gates** | AUTO / NOTIFY / APPROVE — non-bypassable constitution |
+| **User Conversation** | Chat, intent parsing, task routing |
+
+## What NEO-TX Does NOT Own
+
+| Responsibility | Owner |
+|----------------|-------|
+| Shadow desktop (WSL2 + Xvfb) | **Alchemy** (CPU side) |
+| Vision agent (UI-TARS-72B) | **Alchemy** (CPU side) |
+| Agent loop (screenshot → click) | **Alchemy** (CPU side) |
 
 ## Architecture
 
 ```
-Windows 11 Host                              WSL2 Ubuntu
-┌──────────────────────────┐    localhost    ┌──────────────────────────┐
-│                          │    :6080        │                          │
-│  Alchemy (:8000)         │                 │  Xvfb (:99)             │
-│   ├─ voice pipeline      │                 │   + Fluxbox (WM)        │
-│   ├─ model routing       │                 │   + Firefox, apps       │
-│   └─ Ollama (models)     │                 │                          │
-│                          │◄──────────────►│  x11vnc (:5900)          │
-│  NEO-TX (:8100)          │◄──────────────►│  noVNC (:6080)           │
-│   ├─ agent loop          │                 │                          │
-│   ├─ tray widget         │    WSL bridge  │  xdotool (actions)       │
-│   ├─ constitution        │───────────────►│  scrot (screenshots)     │
-│   └─ task planner        │                 │                          │
-└──────────────────────────┘                 └──────────────────────────┘
+┌───────────────────────────────────────────────┐
+│                  NEO-TX                       │
+│                  port 8100                    │
+│                                               │
+│  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
+│  │  Voice   │  │   14B    │  │   Tray     │  │
+│  │          │  │  Convo   │  │   Widget   │  │
+│  │ wake     │  │  Model   │  │            │  │
+│  │ STT      │  │          │  │ viewport   │  │
+│  │ TTS      │  │ semantic │  │ approvals  │  │
+│  │          │  │ intent   │  │ notify     │  │
+│  └────┬─────┘  └────┬─────┘  └─────┬──────┘  │
+│       │             │              │          │
+│  ┌────▼─────────────▼──────────────▼──────┐   │
+│  │     Ollama GPU (localhost:11434)       │   │
+│  │     14B conversational (~9GB VRAM)    │   │
+│  │     + Whisper / small models (swap)    │   │
+│  └────────────────────────────────────────┘   │
+│       │                                       │
+│       │ HTTP (GUI tasks)                      │
+│       ▼                                       │
+│  Alchemy (:8000) — CPU-side shadow desktop    │
+└───────────────────────────────────────────────┘
 ```
 
-### What Lives Where
+## Defense Constitution
 
-| Concern | Where | Why |
-|---------|-------|-----|
-| Voice (STT/TTS) | **Alchemy** | General I/O, uses fast 14B GPU |
-| Model routing | **Alchemy** | Shared across all tools |
-| Shadow desktop | **NEO-TX** | WSL2 + Xvfb, desktop-specific |
-| Agent loop | **NEO-TX** | Screenshot → reason → act cycle |
-| Approval gates | **NEO-TX** | Action safety, tray integration |
-| Tray widget | **NEO-TX** | Desktop UI element |
+Every action from the shadow desktop goes through a 3-tier gate:
 
-### Model Split
+- **AUTO**: click, type, scroll, screenshot — execute silently
+- **NOTIFY**: open app, download, create file — execute + notify user via tray
+- **APPROVE**: send email, delete file, submit form, purchase — pause + ask user
 
-| Model | Hardware | Role | Called By |
-|-------|----------|------|-----------|
-| **UI-TARS-72B** | CPU (128GB RAM) | GUI agent — screenshot → action JSON | NEO-TX via Alchemy API |
-| **Qwen2.5-Coder-14B** | GPU (12GB VRAM) | Planner, reasoning, voice interpretation | Alchemy directly |
-| **Qwen3-8B** | GPU (swapped) | Fast trivial responses | Alchemy directly |
+Non-bypassable. Every action logged to JSONL audit trail.
 
 ## Quick Start
 
@@ -75,60 +86,33 @@ cd NEO-TX
 # 2. Install
 pip install -e ".[all,dev]"
 
-# 3. Setup WSL2 shadow desktop
-make shadow-setup
+# 3. Make sure Alchemy is running on :8000
+# (see https://github.com/NeoSynaptics/Alchemy)
 
-# 4. Start shadow desktop
-make shadow-start
-
-# 5. View in browser
-# Open http://localhost:6080/vnc.html?autoconnect=true
-
-# 6. Run demo
-make demo
+# 4. Run
+make server   # → http://localhost:8100
 ```
 
 ## Requirements
 
-- Windows 11 Pro with WSL2 + Ubuntu
+- Windows 11 Pro
 - Python 3.12+
+- RTX 4070 (12GB VRAM) — runs 14B model + Whisper
 - [Alchemy](https://github.com/NeoSynaptics/Alchemy) running on port 8000
-- RTX 4070 (12GB VRAM) or equivalent
-- 128GB RAM recommended (for UI-TARS-72B on CPU)
 
 ## Project Structure
 
 ```
 neotx/
-├── shadow/         # Shadow Desktop (WSL2 + Xvfb)
-├── agent/          # Model B (visuomotor agent loop)
+├── voice/          # Whisper STT + Piper TTS + wake word
+├── models/         # GPU model management (14B + small specialized)
 ├── constitution/   # Defense Constitution (approval gates)
 ├── tray/           # PyQt6 system tray + viewport
-├── planner/        # Intent + task decomposition (via Alchemy API)
-├── router/         # Task routing (API vs shadow)
-├── bridge/         # Alchemy integration (HTTP + WS)
+├── planner/        # Task decomposition (via Alchemy API)
+├── router/         # Task routing (direct answer vs shadow desktop)
+├── bridge/         # Alchemy HTTP + WS client
 └── server.py       # FastAPI orchestrator (port 8100)
 ```
-
-## Implementation Phases
-
-| Phase | What | When |
-|-------|------|------|
-| 1 | Shadow Desktop PoC (Xvfb + noVNC in WSL2) | Week 1-2 |
-| 2 | Agent Loop + UI-TARS (local vision, screenshot → act) | Week 3-4 |
-| 3 | Defense Constitution (AUTO / NOTIFY / APPROVE gates) | Week 5-6 |
-| 4 | Tray Widget & Viewport (PyQt6 + noVNC) | Week 7-8 |
-| 5 | Task Planner & Router (via Alchemy API) | Week 9-10 |
-
-## Defense Constitution
-
-Every agent action goes through a 3-tier gate:
-
-- **AUTO**: click, type, scroll, screenshot — execute silently
-- **NOTIFY**: open app, download, create file — execute + notify user
-- **APPROVE**: send email, delete file, submit form, purchase — pause + ask user
-
-Non-bypassable. Every action logged to JSONL audit trail.
 
 ## License
 

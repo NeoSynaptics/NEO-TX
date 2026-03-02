@@ -1,182 +1,88 @@
-# NEO-TX: Shadow Desktop Implementation Plan
+# NEO-TX: Implementation Plan
 
 ## Context
 
-Every existing computer-use agent (Claude Computer Use, OpenAI Operator) hijacks the user's screen. NEO-TX doesn't. The AI gets its own hidden virtual desktop — a "shadow" of the real desktop — where it operates GUI apps autonomously. The user keeps their screen. They only intersect at approval gates and an optional viewport.
+NEO-TX is the smart user-facing AI interface. It handles voice, conversation (14B GPU model), tray widget, and approval gates. For heavy GUI work, it delegates to [Alchemy](https://github.com/NeoSynaptics/Alchemy) (CPU-side shadow desktop + UI-TARS-72B).
 
-**Local-first.** No cloud APIs. UI-TARS-72B (ByteDance, open-weight) runs on CPU for GUI agent work. Qwen2.5-Coder-14B on GPU for planning. Voice handled by Alchemy (separate repo).
-
-**Platform:** Windows 11 Pro → Shadow desktop runs inside **WSL2 + Xvfb** (direct port of Linux spec, zero security flags, proven stack).
+**Local-first.** No cloud APIs. GPU models for fast interaction, CPU models for heavy lifting.
 
 ---
 
 ## Architecture
 
 ```
-Windows 11 Host                              WSL2 Ubuntu
-┌──────────────────────────┐    localhost    ┌──────────────────────────┐
-│                          │    :6080        │                          │
-│  Alchemy (:8000)         │                 │  Xvfb (:99)             │
-│   ├─ voice pipeline      │                 │   + Fluxbox (WM)        │
-│   ├─ model routing       │                 │   + Firefox, apps       │
-│   └─ Ollama (models)     │                 │                          │
-│                          │◄──────────────►│  x11vnc (:5900)          │
-│  NEO-TX (:8100)          │◄──────────────►│  noVNC (:6080)           │
-│   ├─ agent loop          │                 │                          │
-│   ├─ tray widget         │    WSL bridge  │  xdotool (actions)       │
-│   ├─ constitution        │───────────────►│  scrot (screenshots)     │
-│   └─ task planner        │                 │                          │
-└──────────────────────────┘                 └──────────────────────────┘
+NEO-TX (GPU side, port 8100)          Alchemy (CPU side, port 8000)
+┌────────────────────────────┐        ┌────────────────────────────┐
+│  Voice pipeline            │        │  Shadow desktop (WSL2)     │
+│  14B conversational model  │  HTTP  │  UI-TARS-72B agent loop    │
+│  Tray widget + viewport    │◄──────►│  Screenshot → click/type   │
+│  Approval gates            │        │  xdotool actions           │
+│  Small specialized models  │        │                            │
+└────────────────────────────┘        └────────────────────────────┘
 ```
 
-### Separation of Concerns
+### Resource Split
 
-| Concern | Owner | Why |
-|---------|-------|-----|
-| Voice (STT/TTS) | **Alchemy** | General I/O, fast 14B GPU |
-| Model routing | **Alchemy** | Shared, triviality detection |
-| Ollama models | **Alchemy** | Centralized model lifecycle |
-| Shadow desktop | **NEO-TX** | WSL2 + Xvfb |
-| Agent loop | **NEO-TX** | Screenshot → reason → act |
-| Constitution | **NEO-TX** | Approval gates |
-| Tray widget | **NEO-TX** | Desktop UI |
-| Task planner | **NEO-TX** | Decomposition via Alchemy API |
+| Resource | Owner | What |
+|----------|-------|------|
+| GPU (12GB VRAM) | **NEO-TX** | 14B conversational + Whisper + small models |
+| CPU (128GB RAM) | **Alchemy** | UI-TARS-72B (~42GB) + shadow desktop |
 
----
-
-## Repo Structure
-
-```
-NEO-TX/
-├── README.md
-├── CLAUDE.md
-├── pyproject.toml
-├── .env.example
-├── .gitignore
-├── Makefile
-│
-├── config/
-│   └── settings.py                    # Pydantic Settings (port 8100, WSL2 config)
-│
-├── neotx/
-│   ├── __init__.py
-│   ├── server.py                      # FastAPI server (port 8100, thin orchestrator)
-│   │
-│   ├── shadow/                        # Phase 1: Shadow Desktop
-│   │   ├── controller.py             # Start/stop/health Xvfb+Fluxbox+x11vnc+noVNC
-│   │   ├── display.py                # Xvfb display manager
-│   │   ├── vnc.py                    # x11vnc + noVNC bridge
-│   │   ├── wsl.py                    # WSL2 command runner (Windows→WSL2 bridge)
-│   │   └── health.py                 # Service health checks
-│   │
-│   ├── agent/                         # Phase 2: Visuomotor Agent (local-first)
-│   │   ├── loop.py                   # screenshot → reason → act → observe cycle
-│   │   ├── vision_backend.py         # UI-TARS via Alchemy /vision/analyze endpoint
-│   │   ├── actions.py                # click/type/scroll/drag via xdotool in WSL2
-│   │   ├── screenshot.py             # Capture from Xvfb
-│   │   └── prompts.py                # System prompts for vision model
-│   │
-│   ├── constitution/                  # Phase 3: Defense Constitution
-│   │   ├── gates.py                  # 3-tier: AUTO / NOTIFY / APPROVE
-│   │   ├── rules.py                  # Action classification
-│   │   └── audit.py                  # JSONL audit log
-│   │
-│   ├── tray/                          # Phase 4: System Tray Widget
-│   │   ├── widget.py                 # PyQt6 system tray icon + menu
-│   │   ├── viewport.py              # noVNC viewport (QWebEngineView)
-│   │   ├── notifications.py         # Toast notifications
-│   │   └── approval_dialog.py       # Modal approve/deny dialog
-│   │
-│   ├── planner/                       # Phase 5: Task Planner
-│   │   ├── intent.py                # Intent parser via Alchemy gateway
-│   │   ├── decomposer.py            # Task → sub-steps
-│   │   └── memory.py                # ChromaDB session memory
-│   │
-│   ├── router/                        # Phase 5: Task Router
-│   │   └── task_router.py           # API-direct vs shadow-desktop decision
-│   │
-│   └── bridge/                        # Alchemy integration
-│       ├── client.py                # HTTP client to port 8000
-│       ├── ws_client.py             # WebSocket client
-│       └── auth.py                  # Bearer token management
-│
-├── wsl/
-│   ├── setup.sh
-│   ├── start_shadow.sh
-│   ├── stop_shadow.sh
-│   └── health_check.sh
-│
-├── tests/
-│   ├── conftest.py
-│   ├── test_shadow/
-│   ├── test_agent/
-│   ├── test_constitution/
-│   ├── test_tray/
-│   ├── test_planner/
-│   └── test_bridge/
-│
-├── scripts/
-│   ├── install_wsl.ps1
-│   └── demo.py
-│
-└── docs/
-    ├── PLAN.md (this file)
-    ├── ARCHITECTURE.md
-    └── APPROVAL_GATES.md
-```
+GPU and CPU work in parallel — never block each other.
 
 ---
 
 ## Phase Plan
 
-### Phase 1 (Week 1-2): Shadow Desktop PoC
-**Goal:** Xvfb running in WSL2, controllable from Windows, viewable via noVNC.
+### Phase 1 (Week 1-2): Voice Pipeline
+**Goal:** "Hey Neo" → Whisper STT → text response → Piper TTS.
 
 **Build:**
-- `neotx/shadow/wsl.py` — WslRunner class (`run()`, `run_bg()`, `is_available()`)
-- `neotx/shadow/controller.py` — ShadowDesktopController (`start()`, `stop()`, `health()`, `screenshot()`)
-- WSL2 scripts (already scaffolded)
-- `scripts/demo.py` — starts shadow, opens Firefox, user views at localhost:6080
+- `neotx/voice/wake_word.py` — openWakeWord ("hey_neo", CPU, ~10MB)
+- `neotx/voice/listener.py` — faster-whisper (large-v3, CUDA, on-demand)
+- `neotx/voice/speaker.py` — Piper TTS (CPU, en_US-lessac-medium)
+- `neotx/voice/pipeline.py` — VAD → STT → 14B model → TTS
 
-**Milestone:** `python scripts/demo.py` starts hidden desktop → opens Firefox → viewable at `http://localhost:6080/vnc.html`
+**Milestone:** Say "Hey Neo, what time is it?" → NEO-TX speaks the answer.
 
-**Tests:** ~20 (WslRunner, controller lifecycle, health checks)
+**Tests:** ~20
 
 ---
 
-### Phase 2 (Week 3-4): Agent Loop + UI-TARS (Local-First)
-**Goal:** Agent loop: screenshot → Alchemy /vision/analyze (UI-TARS-72B) → parse action → xdotool → repeat.
+### Phase 2 (Week 3-4): 14B Conversational Model
+**Goal:** Fast, semantic conversation via GPU model. NOT a coding model.
 
 **Build:**
-- `neotx/agent/loop.py` — perceive-plan-act cycle (max 50 steps)
-- `neotx/agent/vision_backend.py` — calls `POST http://localhost:8000/vision/analyze` (Alchemy routes to UI-TARS-72B on CPU)
-- `neotx/agent/actions.py` — xdotool primitives (click, type, key, scroll, drag)
-- `neotx/agent/screenshot.py` — capture + base64 encode from Xvfb
+- `neotx/models/manager.py` — GPU model lifecycle (load, unload, health, VRAM tracking)
+- `neotx/models/conversation.py` — 14B chat interface (context window, history)
+- `neotx/router/task_router.py` — direct answer vs delegate to Alchemy
 
-**Key:** Agent loop runs locally. Vision model (UI-TARS-72B) runs on CPU via Alchemy. No cloud API calls.
+**Key:** 14B understands intent semantically. "Send my hours to work" → knows this needs GUI → routes to Alchemy. "What's 2+2?" → answers directly.
 
-**Milestone:** "Open Firefox and search for weather in Stockholm" works end-to-end.
+**Milestone:** Voice + 14B conversation works end-to-end.
 
-**Tests:** ~25 (loop, action parsing, screenshot capture, mock vision responses)
+**Tests:** ~25
 
 ---
 
-### Phase 3 (Week 5-6): Defense Constitution
-**Goal:** 3-tier approval gates for every agent action.
+### Phase 3 (Week 5-6): Alchemy Bridge + Approval Gates
+**Goal:** NEO-TX sends GUI tasks to Alchemy. Alchemy sends approval requests back.
 
 **Build:**
+- `neotx/bridge/client.py` — HTTP client to Alchemy (port 8000)
+- `neotx/bridge/ws_client.py` — WebSocket for real-time task updates + approval requests
 - `neotx/constitution/gates.py` — 3-tier classification (AUTO/NOTIFY/APPROVE)
 - `neotx/constitution/rules.py` — action → tier mapping
-- `neotx/constitution/audit.py` — JSONL action log (every action, every screenshot)
+- `neotx/constitution/audit.py` — JSONL audit log
 
 **Tiers:**
-- **AUTO:** click, type, scroll, screenshot, navigate — execute silently
-- **NOTIFY:** open app, download file, create file — execute + notify user
-- **APPROVE:** send email, delete file, submit form, purchase, post publicly — pause + ask
+- **AUTO:** click, type, scroll — Alchemy executes silently
+- **NOTIFY:** open app, download — Alchemy executes, NEO-TX shows notification
+- **APPROVE:** send email, delete, purchase — Alchemy pauses, NEO-TX asks user
 
-**Milestone:** Agent stops and waits for approval before sending email.
+**Milestone:** Send a GUI task → Alchemy runs it → approval dialog appears before dangerous action.
 
-**Tests:** ~20 (gate classification, audit trail integrity, timeout behavior)
+**Tests:** ~25
 
 ---
 
@@ -191,22 +97,22 @@ NEO-TX/
 
 **Milestone:** Tray icon in system tray. Click → viewport shows shadow desktop. APPROVE actions show dialog with screenshot.
 
-**Tests:** ~15 (QTest smoke tests)
+**Tests:** ~15
 
 ---
 
-### Phase 5 (Week 9-10): Task Planner & Router
-**Goal:** Intelligent task decomposition + API-direct vs shadow-desktop routing.
+### Phase 5 (Week 9-10): Task Planner & Small Models
+**Goal:** Intelligent task decomposition + small specialized GPU models for specific fast tasks.
 
 **Build:**
-- `neotx/planner/intent.py` — send to Alchemy `POST /chat` for intent parsing
+- `neotx/planner/intent.py` — intent parsing via 14B model
 - `neotx/planner/decomposer.py` — complex task → ordered sub-steps
-- `neotx/router/task_router.py` — `requires_gui?` → shadow : api_direct
+- `neotx/models/specialized.py` — small model hot-swap framework (~2B models)
 - `neotx/planner/memory.py` — ChromaDB for task patterns
 
-**Key:** NEO-TX does NOT create its own Ollama connection. It uses Alchemy as the LLM gateway.
+**Future:** LoRA adapter hot-swap via llama.cpp (when Ollama supports it, or switch to llama.cpp server).
 
-**Milestone:** "Send my hours to work" decomposes into: gather hours → compose email (shadow) → fill form (shadow) → APPROVE gate → send (shadow).
+**Milestone:** "Send my hours to work" decomposes into steps, routes correctly between direct answers and Alchemy GUI tasks.
 
 **Tests:** ~25
 
@@ -216,64 +122,37 @@ NEO-TX/
 
 | NEO-TX Need | Alchemy Endpoint |
 |---|---|
-| Text generation | `POST /chat` |
-| Vision analysis | `POST /vision/analyze` |
+| Submit GUI task | `POST /vision/task` |
+| Single screenshot analysis | `POST /vision/analyze` |
+| Task status | `GET /vision/task/{id}/status` |
+| Shadow desktop control | `POST /shadow/start\|stop` |
+| Shadow desktop health | `GET /shadow/health` |
+| Screenshot capture | `GET /shadow/screenshot` |
 | Model status | `GET /models` |
-| Voice transcription | `POST /voice/transcribe` |
-| Voice synthesis | `POST /voice/speak` |
-| Health check | `GET /health` |
-
----
-
-## Dependencies
-
-**WSL2 Ubuntu:** `xvfb fluxbox x11vnc xdotool scrot xclip firefox-esr`
-
-**Python (Windows host):**
-- Core: `pydantic pydantic-settings fastapi uvicorn httpx websockets Pillow`
-- Tray: `PyQt6 PyQt6-WebEngine`
-- Planner: `chromadb`
-
-**Ollama (via Alchemy):** UI-TARS-72B (CPU), Qwen2.5-Coder-14B (GPU), Qwen3-8B (GPU swapped)
 
 ---
 
 ## Hardware Budget
 
 ```
-GPU (RTX 4070, 12GB VRAM):
-  Qwen2.5-Coder-14B (resident)  = 9.4GB
-  Qwen3-8B (on-demand, swapped) = 5.2GB
-  Whisper large-v3 (on-demand)   = 3GB  (managed by Alchemy)
+GPU (RTX 4070, 12GB VRAM) — owned by NEO-TX:
+  14B conversational (resident)   = ~9GB
+  Whisper large-v3 (on-demand)    = ~3GB  (swaps with 14B)
+  Small models (on-demand)        = ~2GB  (swaps)
 
-CPU (i9-13900K, 128GB RAM):
-  UI-TARS-72B Q4_K_M (resident)  = ~42GB
-  Piper TTS (tiny)               = ~50MB
-  Remaining                       = ~86GB free
+CPU (i9-13900K, 128GB RAM) — owned by Alchemy:
+  UI-TARS-72B Q4_K_M (resident)   = ~42GB
+  Piper TTS (tiny)                 = ~50MB
+  Shadow desktop                   = minimal
+  Remaining                        = ~86GB free
 ```
-
----
-
-## Future: Adapter Architecture
-
-Apple-inspired pattern — one base model resident, tiny LoRA adapters hot-swap per request:
-
-```
-Qwen2.5-Coder-14B (base, resident ~9GB VRAM)
-  ├─ Adapter: Routing classifier (~200MB, 1-5ms swap)
-  ├─ Adapter: Code understanding (~200MB)
-  ├─ Adapter: Doc classification (~200MB)
-  └─ Adapter: Intent parser (~200MB)
-```
-
-Requires llama.cpp server (Ollama doesn't support LoRA hot-swap yet). Train with Unsloth. This replaces regex-based triviality detection with learned routing.
 
 ---
 
 ## Verification
 
-1. **Phase 1:** Run `demo.py` → view shadow desktop at localhost:6080
-2. **Phase 2:** Give agent "open Firefox, search for X" → watch it execute
-3. **Phase 3:** Agent pauses before sending email → approval dialog
-4. **Phase 4:** Right-click tray → viewport shows shadow desktop live
-5. **Phase 5:** "Send my hours to work" decomposes and routes correctly
+1. **Phase 1:** Say "Hey Neo, what time is it?" → TTS speaks answer
+2. **Phase 2:** Natural conversation, intent detection, routing decisions
+3. **Phase 3:** GUI task delegated → Alchemy runs it → approval dialog works
+4. **Phase 4:** Tray icon → viewport shows shadow desktop live
+5. **Phase 5:** Complex task decomposes and routes correctly

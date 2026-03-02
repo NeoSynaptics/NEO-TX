@@ -4,18 +4,12 @@ import pytest
 
 
 @pytest.fixture
-def display_num():
-    """Default display number for shadow desktop tests."""
-    return 99
+def alchemy_url():
+    """Default Alchemy API URL."""
+    return "http://localhost:8000"
 
 
 @pytest.fixture
-def vnc_port():
-    """Default VNC port."""
-    return 5900
-
-
-@pytest.fixture
-def novnc_port():
-    """Default noVNC port."""
-    return 6080
+def neotx_port():
+    """Default NEO-TX server port."""
+    return 8100

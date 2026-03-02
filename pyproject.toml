@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "neo-tx"
 version = "0.1.0"
-description = "Shadow Desktop — AI operates a hidden virtual desktop while you keep yours"
+description = "Smart AI interface — voice, fast GPU models, tray widget, approval gates"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [
@@ -19,11 +19,16 @@ dependencies = [
     "uvicorn[standard]",
     "httpx",
     "websockets",
-    "aiofiles",
-    "Pillow",
 ]
 
 [project.optional-dependencies]
+voice = [
+    "faster-whisper",
+    "piper-tts",
+    "openwakeword",
+    "sounddevice",
+    "webrtcvad",
+]
 tray = [
     "PyQt6",
     "PyQt6-WebEngine",
@@ -32,7 +37,7 @@ planner = [
     "chromadb",
 ]
 all = [
-    "neo-tx[tray,planner]",
+    "neo-tx[voice,tray,planner]",
 ]
 dev = [
     "pytest",
@@ -45,8 +50,7 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
-    "live: tests requiring running WSL2 + shadow desktop",
-    "gpu: tests requiring GPU for vision model",
+    "gpu: tests requiring GPU for voice/model inference",
     "integration: tests requiring Alchemy running",
 ]
 
