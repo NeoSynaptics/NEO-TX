@@ -1,10 +1,41 @@
-"""GPU model management — 14B conversational + specialized small models.
+"""GPU model management — registry, providers, conversation context.
 
 NEO-TX owns the GPU models for fast user interaction:
 - 14B conversational model (semantic understanding, NOT coding)
 - Small specialized models (~2B) for specific fast tasks
-- Future: LoRA adapter hot-swap via llama.cpp
-
-Models time-share the GPU (12GB VRAM) — 14B is resident, Whisper and
-small models swap in on demand.
 """
+
+from neotx.models.conversation import ConversationManager
+from neotx.models.provider import AlchemyProvider, ModelProvider, OllamaProvider
+from neotx.models.registry import ModelRegistry, build_default_registry
+from neotx.models.schemas import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    ModelCapability,
+    ModelCard,
+    ModelLocation,
+    RouteDecision,
+    RouteIntent,
+    SpeedTier,
+    StreamChunk,
+)
+
+__all__ = [
+    "ConversationManager",
+    "AlchemyProvider",
+    "ModelProvider",
+    "OllamaProvider",
+    "ModelRegistry",
+    "build_default_registry",
+    "ChatMessage",
+    "ChatRequest",
+    "ChatResponse",
+    "ModelCapability",
+    "ModelCard",
+    "ModelLocation",
+    "RouteDecision",
+    "RouteIntent",
+    "SpeedTier",
+    "StreamChunk",
+]
