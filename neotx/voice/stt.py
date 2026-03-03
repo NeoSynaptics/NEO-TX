@@ -81,6 +81,32 @@ class WhisperSTT:
         )
         return text
 
+    async def unload(self) -> None:
+        """Unload the Whisper model to free VRAM."""
+        if self._model is None:
+            return
+
+        model_ref = self._model
+        self._model = None
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._free_gpu_memory, model_ref)
+        logger.info("Whisper model unloaded, VRAM freed")
+
+    @staticmethod
+    def _free_gpu_memory(model):
+        import gc
+
+        del model
+        gc.collect()
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
+
     @property
     def is_loaded(self) -> bool:
         return self._model is not None

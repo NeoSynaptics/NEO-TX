@@ -27,10 +27,13 @@ dependencies = [
 [project.optional-dependencies]
 voice = [
     "faster-whisper",
-    "piper-tts",
     "openwakeword",
     "sounddevice",
     "webrtcvad",
+]
+voice-piper = [
+    "neo-tx[voice]",
+    "piper-tts",
 ]
 tray = [
     "PyQt6",
@@ -40,7 +43,7 @@ planner = [
     "chromadb",
 ]
 all = [
-    "neo-tx[voice,tray,planner]",
+    "neo-tx[voice,voice-piper,tray,planner]",
 ]
 dev = [
     "pytest",

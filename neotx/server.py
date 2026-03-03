@@ -50,11 +50,30 @@ async def lifespan(app: FastAPI):
 
     conversation_mgr = ConversationManager()
 
+    # --- Knowledge retriever + event reporter (NEO-RX, optional) ---
+    knowledge_retriever = None
+    event_reporter = None
+    if settings.knowledge_enabled:
+        from neotx.knowledge.retriever import KnowledgeRetriever
+        from neotx.knowledge.reporter import EventReporter
+
+        knowledge_retriever = KnowledgeRetriever(
+            neorx_host=settings.neorx_host,
+            max_docs=settings.knowledge_max_docs,
+        )
+        event_reporter = EventReporter(neorx_host=settings.neorx_host)
+        logger.info("Knowledge retrieval enabled (NEO-RX: %s)", settings.neorx_host)
+
+    app.state.knowledge_retriever = knowledge_retriever
+    app.state.event_reporter = event_reporter
+
     app.state.router = SmartRouter(
         registry=registry,
         providers=providers,
         conversation_manager=conversation_mgr,
         cascades=[ConversationToVisionCascade()],
+        knowledge_retriever=knowledge_retriever,
+        event_reporter=event_reporter,
     )
     app.state.registry = registry
     app.state.providers = providers
@@ -101,16 +120,68 @@ async def lifespan(app: FastAPI):
 
     # --- Voice pipeline (optional) ---
     app.state.voice_pipeline = None
+    app.state.vram_manager = None
     if settings.voice_enabled:
         try:
             from neotx.voice.audio import AudioStream
             from neotx.voice.listener import SpeechListener
             from neotx.voice.pipeline import VoicePipeline
             from neotx.voice.stt import WhisperSTT
-            from neotx.voice.tts import PiperTTS
             from neotx.voice.wake_word import WakeWordDetector
 
             audio_stream = AudioStream()
+            stt = WhisperSTT(
+                model_size=settings.whisper_model,
+                device=settings.whisper_device,
+            )
+
+            # TTS engine selection
+            fish_process = None
+            if settings.tts_engine == "fish":
+                from neotx.voice.fish_speech import FishSpeechProcess
+                from neotx.voice.tts import FishSpeechTTS
+
+                fish_process = FishSpeechProcess(
+                    port=settings.fish_speech_port,
+                    checkpoint_path=settings.fish_speech_checkpoint,
+                    decoder_path=settings.fish_speech_decoder_path or None,
+                    decoder_config=settings.fish_speech_decoder_config,
+                    listen_host=settings.fish_speech_host,
+                    startup_timeout=settings.fish_speech_startup_timeout,
+                    compile=settings.fish_speech_compile,
+                    python_exe=settings.fish_speech_python_exe or None,
+                    working_dir=settings.fish_speech_dir or None,
+                )
+                tts = FishSpeechTTS(
+                    fish_process=fish_process,
+                    sample_rate=settings.fish_speech_sample_rate,
+                    temperature=settings.fish_speech_temperature,
+                    top_p=settings.fish_speech_top_p,
+                    repetition_penalty=settings.fish_speech_repetition_penalty,
+                    max_new_tokens=settings.fish_speech_max_new_tokens,
+                    reference_id=settings.fish_speech_reference_id or None,
+                    chunk_length=settings.fish_speech_chunk_length,
+                )
+            else:
+                from neotx.voice.tts import PiperTTS
+
+                tts = PiperTTS(model=settings.piper_model)
+
+            # VRAM Manager (single-GPU mode only)
+            vram_mgr = None
+            from neotx.voice.vram_manager import GPUMode, VRAMManager
+
+            gpu_mode = GPUMode(settings.gpu_mode)
+            if gpu_mode == GPUMode.SINGLE:
+                vram_mgr = VRAMManager(
+                    mode=gpu_mode,
+                    ollama_host=settings.ollama_host,
+                    gpu_model=settings.gpu_model,
+                    keep_alive=settings.gpu_model_keep_alive,
+                )
+                await vram_mgr.start()
+                app.state.vram_manager = vram_mgr
+
             app.state.voice_pipeline = VoicePipeline(
                 router=app.state.router,
                 wake_word=WakeWordDetector(
@@ -121,14 +192,17 @@ async def lifespan(app: FastAPI):
                     vad_aggressiveness=settings.voice_vad_aggressiveness,
                     silence_ms=settings.voice_silence_ms,
                 ),
-                stt=WhisperSTT(
-                    model_size=settings.whisper_model,
-                    device=settings.whisper_device,
-                ),
-                tts=PiperTTS(model=settings.piper_model),
+                stt=stt,
+                tts=tts,
                 audio_stream=audio_stream,
+                vram=vram_mgr,
+                fish_process=fish_process,
             )
-            logger.info("Voice pipeline initialized (start via POST /voice/start)")
+            logger.info(
+                "Voice pipeline initialized (tts=%s, gpu_mode=%s)",
+                settings.tts_engine,
+                settings.gpu_mode,
+            )
         except ImportError:
             logger.warning("Voice dependencies not installed — run: pip install -e '.[voice]'")
         except Exception:
@@ -140,8 +214,16 @@ async def lifespan(app: FastAPI):
     if app.state.voice_pipeline and app.state.voice_pipeline.is_running:
         await app.state.voice_pipeline.stop()
 
+    if app.state.vram_manager:
+        await app.state.vram_manager.close()
+
     if app.state.tray_manager and app.state.tray_manager.is_running:
         app.state.tray_manager.stop()
+
+    if app.state.knowledge_retriever:
+        await app.state.knowledge_retriever.close()
+    if app.state.event_reporter:
+        await app.state.event_reporter.close()
 
     await ollama.close()
     await alchemy.close()
@@ -169,4 +251,8 @@ app.include_router(voice.router, prefix="/v1")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": __version__}
+    return {
+        "status": "ok",
+        "version": __version__,
+        "knowledge_enabled": getattr(app.state, "knowledge_retriever", None) is not None,
+    }

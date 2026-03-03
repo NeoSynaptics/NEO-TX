@@ -11,11 +11,18 @@ from neotx.models.schemas import ChatMessage
 logger = logging.getLogger(__name__)
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are Neo, a smart AI assistant running locally on the user's machine. "
-    "You are fast, helpful, and conversational. You handle general questions directly. "
-    "For tasks requiring GUI interaction (clicking buttons, filling forms, navigating "
-    "websites, using desktop apps), you delegate to a background vision agent. "
-    "Be concise and natural. The user may be speaking to you by voice."
+    "You are Neo, a local AI assistant. You talk like a sharp, knowledgeable friend — "
+    "not a textbook. The user is speaking to you by VOICE, so your responses will be "
+    "read aloud.\n\n"
+    "Rules:\n"
+    "- Keep responses SHORT: 2-4 sentences max unless asked for detail.\n"
+    "- Be direct and opinionated. Say what YOU think, don't list every angle.\n"
+    "- Sound natural — like talking, not writing an essay.\n"
+    "- No bullet points, no numbered lists, no markdown. Just speak.\n"
+    "- If the user asks about something complex, give the interesting hook first, "
+    "then offer to go deeper.\n"
+    "- For GUI tasks (clicking, browsing, desktop apps), delegate to a background vision agent.\n"
+    "- Never say 'As an AI' or 'I don't have feelings'. Just be real."
 )
 
 
@@ -41,8 +48,17 @@ class ConversationManager:
     def system_prompt(self) -> str:
         return self._system_prompt
 
-    def get_messages(self, conversation_id: UUID) -> list[ChatMessage]:
+    def get_messages(
+        self,
+        conversation_id: UUID,
+        knowledge_context: list[str] | None = None,
+    ) -> list[ChatMessage]:
         """Get full message list for Ollama including system prompt.
+
+        Args:
+            conversation_id: The conversation to fetch messages for.
+            knowledge_context: Optional list of distilled knowledge docs
+                to inject into the system prompt (from NEO-RX Nightwatch).
 
         Returns [system, ...history] trimmed to fit context window.
         """
@@ -52,7 +68,15 @@ class ConversationManager:
             history = history[-self._max_history :]
             self._conversations[conversation_id] = history
 
-        system_msg = ChatMessage(role="system", content=self._system_prompt)
+        # Build system prompt with optional knowledge injection
+        prompt = self._system_prompt
+        if knowledge_context:
+            knowledge_block = "\n\n---\nRelevant knowledge:\n" + "\n\n".join(
+                knowledge_context
+            )
+            prompt += knowledge_block
+
+        system_msg = ChatMessage(role="system", content=prompt)
         messages = [system_msg] + list(history)
 
         # Estimate tokens (~4 chars per token) and trim oldest if over budget

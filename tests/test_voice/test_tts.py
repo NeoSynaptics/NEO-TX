@@ -45,7 +45,7 @@ class TestPiperTTS:
             audio = np.zeros(1000, dtype=np.int16)
             wav_file.writeframes(audio.tobytes())
 
-        mock_voice.synthesize = mock_synth
+        mock_voice.synthesize_wav = mock_synth
         tts._voice = mock_voice
 
         mock_audio = MagicMock()
@@ -70,7 +70,7 @@ class TestPiperTTS:
             audio = np.zeros(500, dtype=np.int16)
             wav_file.writeframes(audio.tobytes())
 
-        mock_voice.synthesize = mock_synth
+        mock_voice.synthesize_wav = mock_synth
         tts._voice = mock_voice
 
         mock_audio = MagicMock()
@@ -101,7 +101,7 @@ class TestPiperTTS:
             wav_file.setframerate(22050)
             wav_file.writeframes(np.zeros(100, dtype=np.int16).tobytes())
 
-        mock_voice.synthesize = mock_synth
+        mock_voice.synthesize_wav = mock_synth
         tts._voice = mock_voice
 
         mock_audio = MagicMock()

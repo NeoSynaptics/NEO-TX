@@ -1,7 +1,9 @@
-"""Text-to-speech — Piper TTS wrapper.
+"""Text-to-speech — Piper TTS + Fish Speech 1.5.
 
-CPU-only (~50MB). Supports sentence-buffered streaming for natural playback
-while the 14B model is still generating text.
+PiperTTS: CPU-only (~50MB), robotic but zero-GPU.
+FishSpeechTTS: GPU via subprocess HTTP server, near-human quality.
+
+Both share the same interface: load, speak, speak_streamed, _synthesize, is_loaded.
 """
 
 from __future__ import annotations
@@ -11,11 +13,14 @@ import io
 import logging
 import re
 import wave
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 import numpy as np
 
 from neotx.voice.audio import AudioStream
+
+if TYPE_CHECKING:
+    from neotx.voice.fish_speech import FishSpeechProcess
 
 logger = logging.getLogger(__name__)
 
@@ -175,3 +180,172 @@ class PiperTTS:
     @property
     def is_loaded(self) -> bool:
         return self._voice is not None
+
+
+class FishSpeechTTS:
+    """Synthesizes text to speech using Fish Speech 1.5 (GPU, subprocess HTTP).
+
+    Same interface as PiperTTS for drop-in replacement. The Fish Speech process
+    lifecycle is managed externally (by VRAMManager or kept resident in dual-GPU).
+    """
+
+    def __init__(
+        self,
+        fish_process: FishSpeechProcess,
+        sample_rate: int = 44100,
+        format: str = "wav",
+        temperature: float = 0.8,
+        top_p: float = 0.8,
+        repetition_penalty: float = 1.1,
+        max_new_tokens: int = 1024,
+        reference_id: str | None = None,
+        chunk_length: int = 200,
+    ) -> None:
+        self._fish = fish_process
+        self._sample_rate = sample_rate
+        self._format = format
+        self._temperature = temperature
+        self._top_p = top_p
+        self._repetition_penalty = repetition_penalty
+        self._max_new_tokens = max_new_tokens
+        self._reference_id = reference_id
+        self._chunk_length = chunk_length
+        self._client = None  # httpx.AsyncClient, created in load()
+
+    async def load(self, audio_stream: AudioStream | None = None) -> None:
+        """Initialize HTTP client for Fish Speech API."""
+        if self._client is not None:
+            return
+
+        import httpx
+
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0))
+        logger.info("FishSpeechTTS loaded (endpoint=%s)", self._fish.base_url)
+
+    async def speak(self, text: str, audio_stream: AudioStream | None = None) -> None:
+        """Synthesize full text and play it."""
+        if not self._client:
+            await self.load()
+
+        audio = await self._synthesize(text)
+        if audio is not None and audio_stream:
+            audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+
+    async def speak_streamed(
+        self,
+        chunks: AsyncIterator[str],
+        audio_stream: AudioStream | None = None,
+        flush_timeout: float = 0.5,
+    ) -> None:
+        """Buffer streaming text into sentences, synthesize and play each.
+
+        Identical sentence-buffering pattern to PiperTTS: asyncio.Queue +
+        regex boundaries + timeout-based flushing.
+        """
+        if not self._client:
+            await self.load()
+
+        buffer = ""
+        _DONE = object()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def _fill_queue():
+            try:
+                async for text in chunks:
+                    await queue.put(text)
+            except Exception:
+                logger.exception("Error reading response chunks")
+            finally:
+                await queue.put(_DONE)
+
+        fill_task = asyncio.create_task(_fill_queue())
+
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=flush_timeout)
+                except asyncio.TimeoutError:
+                    if buffer.strip():
+                        audio = await self._synthesize(buffer.strip())
+                        if audio is not None and audio_stream:
+                            audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+                        buffer = ""
+                    continue
+
+                if item is _DONE:
+                    break
+
+                buffer += item
+
+                while True:
+                    match = _SENTENCE_END.search(buffer)
+                    if not match:
+                        break
+
+                    end_idx = match.end()
+                    sentence = buffer[:end_idx].strip()
+                    buffer = buffer[end_idx:]
+
+                    if sentence:
+                        audio = await self._synthesize(sentence)
+                        if audio is not None and audio_stream:
+                            audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+
+            remaining = buffer.strip()
+            if remaining:
+                audio = await self._synthesize(remaining)
+                if audio is not None and audio_stream:
+                    audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+        finally:
+            if not fill_task.done():
+                fill_task.cancel()
+                try:
+                    await fill_task
+                except asyncio.CancelledError:
+                    pass
+
+    async def _synthesize(self, text: str) -> np.ndarray | None:
+        """Send text to Fish Speech HTTP API, receive WAV, return float32 array."""
+        if not text.strip() or not self._client:
+            return None
+
+        payload = {
+            "text": text,
+            "format": self._format,
+            "temperature": self._temperature,
+            "top_p": self._top_p,
+            "repetition_penalty": self._repetition_penalty,
+            "max_new_tokens": self._max_new_tokens,
+            "chunk_length": self._chunk_length,
+            "streaming": False,
+        }
+        if self._reference_id:
+            payload["reference_id"] = self._reference_id
+
+        resp = await self._client.post(
+            f"{self._fish.base_url}/v1/tts",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+
+        wav_buffer = io.BytesIO(resp.content)
+        with wave.open(wav_buffer, "rb") as wav_in:
+            frames = wav_in.readframes(wav_in.getnframes())
+            sample_width = wav_in.getsampwidth()
+            if sample_width == 2:
+                return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+            elif sample_width == 4:
+                return np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+            else:
+                raise ValueError(f"Unsupported WAV sample width: {sample_width}")
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._client is not None
+
+    async def close(self) -> None:
+        """Close the httpx client."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None

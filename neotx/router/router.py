@@ -9,6 +9,7 @@ Flow:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import AsyncGenerator
@@ -45,11 +46,15 @@ class SmartRouter:
         providers: dict[ModelLocation, ModelProvider],
         conversation_manager: ConversationManager,
         cascades: list[CascadeStrategy] | None = None,
+        knowledge_retriever=None,
+        event_reporter=None,
     ) -> None:
         self._registry = registry
         self._providers = providers
         self._conversations = conversation_manager
         self._cascades = cascades or []
+        self._retriever = knowledge_retriever
+        self._reporter = event_reporter
 
     @property
     def registry(self) -> ModelRegistry:
@@ -116,8 +121,16 @@ class SmartRouter:
             yield StreamChunk(content="Model provider unavailable.", done=True)
             return
 
+        # Retrieve relevant knowledge from NEO-RX (non-blocking, graceful)
+        knowledge_context = []
+        if self._retriever:
+            knowledge_context = await self._retriever.retrieve(request.message)
+
         self._conversations.add_user_message(request.conversation_id, request.message)
-        messages = self._conversations.get_messages(request.conversation_id)
+        messages = self._conversations.get_messages(
+            request.conversation_id,
+            knowledge_context=knowledge_context,
+        )
 
         # Inject classifier instruction into system prompt
         messages[0] = ChatMessage(
@@ -209,6 +222,20 @@ class SmartRouter:
         self._conversations.add_assistant_message(
             request.conversation_id, full_response
         )
+
+        # Report conversation to NEO-RX timeline (fire-and-forget)
+        if self._reporter:
+            asyncio.create_task(
+                self._reporter.report_conversation(
+                    request.conversation_id, "user", request.message
+                )
+            )
+            asyncio.create_task(
+                self._reporter.report_conversation(
+                    request.conversation_id, "assistant", full_response
+                )
+            )
+
         yield StreamChunk(
             content="", done=True, model_used=conv_model.name, inference_ms=elapsed_ms
         )
@@ -271,8 +298,16 @@ class SmartRouter:
                 route_decision=decision,
             )
 
+        # Retrieve relevant knowledge from NEO-RX
+        knowledge_context = []
+        if self._retriever:
+            knowledge_context = await self._retriever.retrieve(request.message)
+
         self._conversations.add_user_message(request.conversation_id, request.message)
-        messages = self._conversations.get_messages(request.conversation_id)
+        messages = self._conversations.get_messages(
+            request.conversation_id,
+            knowledge_context=knowledge_context,
+        )
         messages[0] = ChatMessage(
             role="system",
             content=messages[0].content + CLASSIFIER_INSTRUCTION,
@@ -287,6 +322,19 @@ class SmartRouter:
 
         _, cleaned = parse_intent_tag(raw_text)
         self._conversations.add_assistant_message(request.conversation_id, cleaned)
+
+        # Report to NEO-RX timeline
+        if self._reporter:
+            asyncio.create_task(
+                self._reporter.report_conversation(
+                    request.conversation_id, "user", request.message
+                )
+            )
+            asyncio.create_task(
+                self._reporter.report_conversation(
+                    request.conversation_id, "assistant", cleaned
+                )
+            )
 
         return ChatResponse(
             message=cleaned,

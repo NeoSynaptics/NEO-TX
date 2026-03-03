@@ -1,8 +1,8 @@
-"""Voice pipeline — Whisper STT + Piper TTS + wake word detection.
+"""Voice pipeline — Whisper STT + Piper/Fish Speech TTS + wake word detection.
 
 Voice is the primary user interface for NEO-TX. Runs on GPU for fast response.
 Mic → openWakeWord → Whisper STT → 14B interprets → routes (answer directly
-or send task to Alchemy for shadow desktop work) → Piper TTS → speaker.
+or send task to Alchemy for shadow desktop work) → TTS → speaker.
 
 Imports are lazy to avoid crashing when voice deps aren't installed or
 are incompatible (e.g., webrtcvad on Python 3.13).
@@ -18,6 +18,10 @@ def __getattr__(name: str):
         "VoicePipeline": "neotx.voice.pipeline",
         "WhisperSTT": "neotx.voice.stt",
         "PiperTTS": "neotx.voice.tts",
+        "FishSpeechTTS": "neotx.voice.tts",
+        "FishSpeechProcess": "neotx.voice.fish_speech",
+        "VRAMManager": "neotx.voice.vram_manager",
+        "GPUMode": "neotx.voice.vram_manager",
         "WakeWordDetector": "neotx.voice.wake_word",
     }
     if name in _exports:
@@ -35,5 +39,9 @@ __all__ = [
     "VoicePipeline",
     "WhisperSTT",
     "PiperTTS",
+    "FishSpeechTTS",
+    "FishSpeechProcess",
+    "VRAMManager",
+    "GPUMode",
     "WakeWordDetector",
 ]
