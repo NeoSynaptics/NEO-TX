@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     whisper_model: str = "large-v3"
     whisper_device: str = "cuda"
     piper_model: str = "en_US-lessac-medium"
+    voice_vad_aggressiveness: int = 2       # webrtcvad aggressiveness (0-3)
+    voice_silence_ms: int = 800             # ms of silence to end recording
+    voice_wake_threshold: float = 0.5       # openwakeword confidence threshold
 
     # --- NEO-TX Server ---
     host: str = "127.0.0.1"

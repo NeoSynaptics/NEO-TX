@@ -3,13 +3,14 @@
 The user's single contact point. Delegates GUI work to Alchemy silently.
 """
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import settings
-from neotx.api import callbacks, chat
+from neotx.api import callbacks, chat, voice
 from neotx.models.conversation import ConversationManager
 from neotx.models.provider import AlchemyProvider, OllamaProvider
 from neotx.models.registry import build_default_registry
@@ -17,10 +18,12 @@ from neotx.models.schemas import ModelLocation
 from neotx.router.cascade import ConversationToVisionCascade
 from neotx.router.router import SmartRouter
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize model registry, providers, and router on startup."""
+    """Initialize model registry, providers, router, and voice pipeline on startup."""
     registry = build_default_registry()
 
     ollama = OllamaProvider(
@@ -52,7 +55,46 @@ async def lifespan(app: FastAPI):
     app.state.registry = registry
     app.state.providers = providers
 
+    # --- Voice pipeline (optional) ---
+    app.state.voice_pipeline = None
+    if settings.voice_enabled:
+        try:
+            from neotx.voice.audio import AudioStream
+            from neotx.voice.listener import SpeechListener
+            from neotx.voice.pipeline import VoicePipeline
+            from neotx.voice.stt import WhisperSTT
+            from neotx.voice.tts import PiperTTS
+            from neotx.voice.wake_word import WakeWordDetector
+
+            audio_stream = AudioStream()
+            app.state.voice_pipeline = VoicePipeline(
+                router=app.state.router,
+                wake_word=WakeWordDetector(
+                    model_name=settings.wake_word,
+                    threshold=settings.voice_wake_threshold,
+                ),
+                listener=SpeechListener(
+                    vad_aggressiveness=settings.voice_vad_aggressiveness,
+                    silence_ms=settings.voice_silence_ms,
+                ),
+                stt=WhisperSTT(
+                    model_size=settings.whisper_model,
+                    device=settings.whisper_device,
+                ),
+                tts=PiperTTS(model=settings.piper_model),
+                audio_stream=audio_stream,
+            )
+            logger.info("Voice pipeline initialized (start via POST /voice/start)")
+        except ImportError:
+            logger.warning("Voice dependencies not installed — run: pip install -e '.[voice]'")
+        except Exception:
+            logger.exception("Failed to initialize voice pipeline")
+
     yield
+
+    # Cleanup
+    if app.state.voice_pipeline and app.state.voice_pipeline.is_running:
+        await app.state.voice_pipeline.stop()
 
     await ollama.close()
     await alchemy.close()
@@ -61,7 +103,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NEO-TX",
     description="Smart AI interface — voice, conversation, approval gates, tray widget",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -75,8 +117,9 @@ app.add_middleware(
 
 app.include_router(callbacks.router)
 app.include_router(chat.router)
+app.include_router(voice.router)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}
