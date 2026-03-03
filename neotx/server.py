@@ -83,6 +83,18 @@ async def lifespan(app: FastAPI):
     # Store AlchemyClient on app.state for callback handlers
     app.state.alchemy_client = getattr(alchemy, '_alchemy_client', None)
 
+    # --- Constitution (approval defense) ---
+    from neotx.constitution.engine import ConstitutionEngine
+
+    app.state.constitution = ConstitutionEngine()
+    logger.info("Constitution engine loaded (%d rules)", len(app.state.constitution.rules))
+
+    # --- Task planner ---
+    from neotx.planner.planner import TaskPlanner
+
+    app.state.planner = TaskPlanner()
+    logger.info("Task planner initialized")
+
     # --- Voice pipeline (optional) ---
     app.state.voice_pipeline = None
     if settings.voice_enabled:
@@ -153,4 +165,4 @@ app.include_router(voice.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.3.0"}
+    return {"status": "ok", "version": "0.4.0"}

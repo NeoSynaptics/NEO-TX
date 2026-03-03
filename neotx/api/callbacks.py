@@ -35,10 +35,26 @@ async def receive_approval_request(
     If tray is active, shows an approval dialog and waits for user response.
     If tray is disabled, auto-approves as fallback.
     """
+    from neotx.constitution.engine import ConstitutionEngine
     from neotx.tray.events import TrayEvent, TrayMessage
 
     event_bus = getattr(request.app.state, "tray_event_bus", None)
     alchemy_client = getattr(request.app.state, "alchemy_client", None)
+    constitution: ConstitutionEngine | None = getattr(
+        request.app.state, "constitution", None
+    )
+
+    # Run constitutional rules — may escalate tier
+    if constitution is not None:
+        enforced = constitution.enforce(req.action, req.goal)
+        if enforced.tier != req.action.tier:
+            logger.info(
+                "Constitution escalated action tier %s → %s for task %s",
+                req.action.tier.value,
+                enforced.tier.value,
+                req.task_id,
+            )
+            req.action = enforced
 
     if event_bus is None:
         # Tray disabled — auto-approve and forward to Alchemy
