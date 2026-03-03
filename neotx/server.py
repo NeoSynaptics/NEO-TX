@@ -55,6 +55,34 @@ async def lifespan(app: FastAPI):
     app.state.registry = registry
     app.state.providers = providers
 
+    # --- System tray (optional) ---
+    app.state.tray_event_bus = None
+    app.state.tray_manager = None
+    app.state.alchemy_client = None
+
+    if settings.tray_enabled:
+        try:
+            import asyncio
+
+            from neotx.tray.events import TrayEventBus
+            from neotx.tray.app import TrayManager
+
+            event_bus = TrayEventBus()
+            event_bus.bind_loop(asyncio.get_event_loop())
+            app.state.tray_event_bus = event_bus
+
+            tray_mgr = TrayManager(event_bus=event_bus, settings=settings)
+            tray_mgr.start()
+            app.state.tray_manager = tray_mgr
+            logger.info("System tray started")
+        except ImportError:
+            logger.warning("PyQt6 not installed — tray disabled. Run: pip install -e '.[tray]'")
+        except Exception:
+            logger.exception("Failed to start system tray")
+
+    # Store AlchemyClient on app.state for callback handlers
+    app.state.alchemy_client = getattr(alchemy, '_alchemy_client', None)
+
     # --- Voice pipeline (optional) ---
     app.state.voice_pipeline = None
     if settings.voice_enabled:
@@ -96,6 +124,9 @@ async def lifespan(app: FastAPI):
     if app.state.voice_pipeline and app.state.voice_pipeline.is_running:
         await app.state.voice_pipeline.stop()
 
+    if app.state.tray_manager and app.state.tray_manager.is_running:
+        app.state.tray_manager.stop()
+
     await ollama.close()
     await alchemy.close()
 
@@ -103,7 +134,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NEO-TX",
     description="Smart AI interface — voice, conversation, approval gates, tray widget",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 

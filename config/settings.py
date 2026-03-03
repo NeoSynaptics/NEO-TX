@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     voice_silence_ms: int = 800             # ms of silence to end recording
     voice_wake_threshold: float = 0.5       # openwakeword confidence threshold
 
+    # --- System Tray ---
+    tray_enabled: bool = True
+    tray_novnc_url: str = "http://localhost:6080/vnc.html?autoconnect=true&resize=scale"
+
     # --- NEO-TX Server ---
     host: str = "127.0.0.1"
     port: int = 8100

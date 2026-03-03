@@ -1,12 +1,16 @@
 """Callback endpoints — Alchemy calls these to communicate with NEO-TX.
 
-Approval requests, notifications, and task updates flow through here.
-All responses are stubs (Phase 0) — just acknowledge receipt.
+Approval requests block until user decides (or timeout). Notifications
+and task updates are dispatched to the tray and acknowledged immediately.
+If tray is disabled, approvals auto-approve as fallback.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+import asyncio
+import logging
+
+from fastapi import APIRouter, Request
 
 from neotx.schemas import (
     ApprovalRequest,
@@ -17,25 +21,97 @@ from neotx.schemas import (
     TaskUpdateRequest,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/callbacks", tags=["callbacks"])
 
 
 @router.post("/approval", response_model=ApprovalRequestAck)
-async def receive_approval_request(req: ApprovalRequest) -> ApprovalRequestAck:
-    """Alchemy asks: user needs to approve this action before it executes."""
-    # Phase 0: acknowledge only. Phase 3+ shows dialog to user.
+async def receive_approval_request(
+    req: ApprovalRequest, request: Request
+) -> ApprovalRequestAck:
+    """Alchemy asks: user needs to approve this action before it executes.
+
+    If tray is active, shows an approval dialog and waits for user response.
+    If tray is disabled, auto-approves as fallback.
+    """
+    from neotx.tray.events import TrayEvent, TrayMessage
+
+    event_bus = getattr(request.app.state, "tray_event_bus", None)
+    alchemy_client = getattr(request.app.state, "alchemy_client", None)
+
+    if event_bus is None:
+        # Tray disabled — auto-approve and forward to Alchemy
+        logger.info("Tray disabled: auto-approving task %s", req.task_id)
+        if alchemy_client:
+            try:
+                await alchemy_client.approve_task(req.task_id, decided_by="auto")
+            except Exception:
+                logger.exception("Failed to forward auto-approval to Alchemy")
+        return ApprovalRequestAck(received=True, task_id=req.task_id)
+
+    # Create Future for GUI thread to resolve
+    loop = asyncio.get_event_loop()
+    future = loop.create_future()
+
+    msg = TrayMessage(
+        event=TrayEvent.APPROVAL_REQUEST,
+        data=req.model_dump(mode="json"),
+        response_future=future,
+    )
+    event_bus.push(msg)
+
+    # Wait for user decision (or timeout)
+    try:
+        approved = await asyncio.wait_for(future, timeout=req.timeout_seconds)
+    except asyncio.TimeoutError:
+        approved = False
+        logger.info("Approval timed out for task %s — auto-denied", req.task_id)
+
+    # Forward decision to Alchemy
+    if alchemy_client:
+        try:
+            if approved:
+                await alchemy_client.approve_task(req.task_id, decided_by="user")
+            else:
+                await alchemy_client.deny_task(req.task_id, decided_by="user")
+        except Exception:
+            logger.exception("Failed to forward approval decision to Alchemy")
+
     return ApprovalRequestAck(received=True, task_id=req.task_id)
 
 
 @router.post("/notify", response_model=NotifyAck)
-async def receive_notification(req: NotifyRequest) -> NotifyAck:
+async def receive_notification(req: NotifyRequest, request: Request) -> NotifyAck:
     """Alchemy notifies: a NOTIFY-tier action was executed."""
-    # Phase 0: acknowledge only. Phase 4+ shows tray notification.
+    from neotx.tray.events import TrayEvent, TrayMessage
+
+    event_bus = getattr(request.app.state, "tray_event_bus", None)
+
+    if event_bus is not None:
+        msg = TrayMessage(
+            event=TrayEvent.NOTIFICATION,
+            data=req.model_dump(mode="json"),
+        )
+        event_bus.push(msg)
+
     return NotifyAck(received=True)
 
 
 @router.post("/task-update", response_model=TaskUpdateAck)
-async def receive_task_update(req: TaskUpdateRequest) -> TaskUpdateAck:
+async def receive_task_update(
+    req: TaskUpdateRequest, request: Request
+) -> TaskUpdateAck:
     """Alchemy reports: task status changed (running, completed, failed)."""
-    # Phase 0: acknowledge only. Phase 3+ updates task list UI.
+    from neotx.tray.events import TrayEvent, TrayMessage
+
+    event_bus = getattr(request.app.state, "tray_event_bus", None)
+
+    if event_bus is not None:
+        msg = TrayMessage(
+            event=TrayEvent.TASK_UPDATE,
+            data=req.model_dump(mode="json"),
+        )
+        event_bus.push(msg)
+
     return TaskUpdateAck(received=True)
