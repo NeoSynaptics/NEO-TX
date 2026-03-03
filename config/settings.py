@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # --- NEO-TX Server ---
     host: str = "127.0.0.1"
     port: int = 8100
+    log_level: str = "INFO"
 
 
 settings = Settings()

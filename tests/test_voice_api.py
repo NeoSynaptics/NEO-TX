@@ -48,7 +48,7 @@ async def client_no_voice():
 class TestVoiceStatus:
     async def test_status_idle(self, client_with_voice):
         client, pipeline = client_with_voice
-        resp = await client.get("/voice/status")
+        resp = await client.get("/v1/voice/status")
         assert resp.status_code == 200
         data = resp.json()
         assert data["state"] == "idle"
@@ -56,7 +56,7 @@ class TestVoiceStatus:
         assert data["voice_enabled"] is True
 
     async def test_status_no_voice(self, client_no_voice):
-        resp = await client_no_voice.get("/voice/status")
+        resp = await client_no_voice.get("/v1/voice/status")
         assert resp.status_code == 200
         data = resp.json()
         assert data["voice_enabled"] is False
@@ -65,7 +65,7 @@ class TestVoiceStatus:
 class TestVoiceStart:
     async def test_start_pipeline(self, client_with_voice):
         client, pipeline = client_with_voice
-        resp = await client.post("/voice/start")
+        resp = await client.post("/v1/voice/start")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "started"
@@ -75,12 +75,12 @@ class TestVoiceStart:
         client, pipeline = client_with_voice
         pipeline.is_running = True
         pipeline.state = PipelineState.LISTENING
-        resp = await client.post("/voice/start")
+        resp = await client.post("/v1/voice/start")
         data = resp.json()
         assert data["status"] == "already_running"
 
     async def test_start_no_voice(self, client_no_voice):
-        resp = await client_no_voice.post("/voice/start")
+        resp = await client_no_voice.post("/v1/voice/start")
         data = resp.json()
         assert "error" in data
 
@@ -89,7 +89,7 @@ class TestVoiceStop:
     async def test_stop_pipeline(self, client_with_voice):
         client, pipeline = client_with_voice
         pipeline.is_running = True
-        resp = await client.post("/voice/stop")
+        resp = await client.post("/v1/voice/stop")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "stopped"
@@ -98,11 +98,11 @@ class TestVoiceStop:
     async def test_stop_already_stopped(self, client_with_voice):
         client, pipeline = client_with_voice
         pipeline.is_running = False
-        resp = await client.post("/voice/stop")
+        resp = await client.post("/v1/voice/stop")
         data = resp.json()
         assert data["status"] == "already_stopped"
 
     async def test_stop_no_voice(self, client_no_voice):
-        resp = await client_no_voice.post("/voice/stop")
+        resp = await client_no_voice.post("/v1/voice/stop")
         data = resp.json()
         assert "error" in data

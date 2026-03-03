@@ -133,6 +133,7 @@ class SmartRouter:
             model=conv_model.name,
             messages=messages,
             endpoint=conv_model.endpoint,
+            think=False,
         ):
             full_response += chunk_text
 
@@ -281,6 +282,7 @@ class SmartRouter:
             model=conv_model.name,
             messages=messages,
             endpoint=conv_model.endpoint,
+            think=False,
         )
 
         _, cleaned = parse_intent_tag(raw_text)
@@ -308,7 +310,16 @@ class SmartRouter:
             )
 
         messages = [ChatMessage(role="user", content=request.message)]
-        text, elapsed_ms = await provider.generate("ui-tars:72b", messages)
+        try:
+            text, elapsed_ms = await provider.generate("ui-tars:72b", messages)
+        except Exception:
+            logger.warning("Alchemy unreachable for GUI task: %s", request.message)
+            return ChatResponse(
+                message="I'd like to help with that, but the background agent (Alchemy) isn't reachable right now. Is it running?",
+                conversation_id=request.conversation_id,
+                model_used="internal",
+                route_decision=decision,
+            )
 
         self._conversations.add_user_message(request.conversation_id, request.message)
         self._conversations.add_assistant_message(request.conversation_id, text)

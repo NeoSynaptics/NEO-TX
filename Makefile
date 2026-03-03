@@ -1,4 +1,4 @@
-.PHONY: install dev test server
+.PHONY: install dev test lock server
 
 # Install core dependencies
 install:
@@ -11,6 +11,10 @@ dev:
 # Run tests
 test:
 	pytest tests/ -v
+
+# Generate pinned dependency lockfile
+lock:
+	pip-compile pyproject.toml -o requirements-lock.txt --strip-extras
 
 # Run NEO-TX server
 server:

@@ -42,6 +42,7 @@ class WhisperSTT:
                 self._model_size,
                 device=self._device,
                 compute_type=self._compute_type,
+                local_files_only=True,
             ),
         )
         logger.info(
@@ -60,18 +61,18 @@ class WhisperSTT:
         loop = asyncio.get_event_loop()
         t0 = time.monotonic()
 
-        segments, info = await loop.run_in_executor(
-            None,
-            lambda: self._model.transcribe(
+        def _do_transcribe():
+            segments, info = self._model.transcribe(
                 audio,
                 beam_size=5,
                 language="en",
                 vad_filter=True,
-            ),
-        )
+            )
+            # Consume the generator in the executor thread (does the real work)
+            text = " ".join(seg.text.strip() for seg in segments).strip()
+            return text, info
 
-        # Collect all segment texts
-        text = " ".join(seg.text.strip() for seg in segments).strip()
+        text, info = await loop.run_in_executor(None, _do_transcribe)
         elapsed_ms = (time.monotonic() - t0) * 1000
 
         logger.info(

@@ -38,6 +38,7 @@ class ModelProvider(ABC):
         *,
         temperature: float = 0.7,
         endpoint: str | None = None,
+        think: bool | None = None,
     ) -> tuple[str, float]:
         """Non-streaming generation. Returns (response_text, inference_ms)."""
 
@@ -49,6 +50,7 @@ class ModelProvider(ABC):
         *,
         temperature: float = 0.7,
         endpoint: str | None = None,
+        think: bool | None = None,
     ) -> AsyncGenerator[str, None]:
         """Streaming generation. Yields text chunks."""
 
@@ -100,6 +102,27 @@ class OllamaProvider(ModelProvider):
     def _to_ollama_messages(messages: list[ChatMessage]) -> list[dict]:
         return [{"role": m.role, "content": m.content} for m in messages]
 
+    def _build_payload(
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        *,
+        stream: bool,
+        temperature: float = 0.7,
+        think: bool | None = None,
+    ) -> dict:
+        """Build the Ollama /api/chat request payload."""
+        payload: dict = {
+            "model": model,
+            "messages": self._to_ollama_messages(messages),
+            "stream": stream,
+            "keep_alive": self._keep_alive,
+            "options": {"temperature": temperature},
+        }
+        if think is not None:
+            payload["think"] = think
+        return payload
+
     async def generate(
         self,
         model: str,
@@ -107,15 +130,12 @@ class OllamaProvider(ModelProvider):
         *,
         temperature: float = 0.7,
         endpoint: str | None = None,
+        think: bool | None = None,
     ) -> tuple[str, float]:
         client = self._get_client(endpoint)
-        payload = {
-            "model": model,
-            "messages": self._to_ollama_messages(messages),
-            "stream": False,
-            "keep_alive": self._keep_alive,
-            "options": {"temperature": temperature},
-        }
+        payload = self._build_payload(
+            model, messages, stream=False, temperature=temperature, think=think,
+        )
         t0 = time.monotonic()
         resp = await client.post("/api/chat", json=payload)
         resp.raise_for_status()
@@ -130,15 +150,12 @@ class OllamaProvider(ModelProvider):
         *,
         temperature: float = 0.7,
         endpoint: str | None = None,
+        think: bool | None = None,
     ) -> AsyncGenerator[str, None]:
         client = self._get_client(endpoint)
-        payload = {
-            "model": model,
-            "messages": self._to_ollama_messages(messages),
-            "stream": True,
-            "keep_alive": self._keep_alive,
-            "options": {"temperature": temperature},
-        }
+        payload = self._build_payload(
+            model, messages, stream=True, temperature=temperature, think=think,
+        )
         async with client.stream("POST", "/api/chat", json=payload) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
@@ -181,7 +198,9 @@ class AlchemyProvider(ModelProvider):
         )
 
     async def close(self) -> None:
-        self._alchemy_client = None
+        if self._alchemy_client is not None:
+            await self._alchemy_client.close()
+            self._alchemy_client = None
 
     async def generate(
         self,
@@ -190,6 +209,7 @@ class AlchemyProvider(ModelProvider):
         *,
         temperature: float = 0.7,
         endpoint: str | None = None,
+        think: bool | None = None,
     ) -> tuple[str, float]:
         if not self._alchemy_client:
             raise RuntimeError("AlchemyProvider not started")
@@ -210,6 +230,7 @@ class AlchemyProvider(ModelProvider):
         *,
         temperature: float = 0.7,
         endpoint: str | None = None,
+        think: bool | None = None,
     ) -> AsyncGenerator[str, None]:
         text, _ = await self.generate(model, messages, temperature=temperature)
         yield text

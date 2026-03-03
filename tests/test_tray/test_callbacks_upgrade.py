@@ -62,7 +62,7 @@ class TestApprovalCallback:
         asyncio.create_task(approve_after_delay())
 
         resp = await client.post(
-            "/callbacks/approval",
+            "/v1/callbacks/approval",
             json={
                 "task_id": str(task_id),
                 "action": {"action": "click", "x": 100, "y": 200, "reasoning": "test"},
@@ -92,7 +92,7 @@ class TestApprovalCallback:
         asyncio.create_task(deny_after_delay())
 
         resp = await client.post(
-            "/callbacks/approval",
+            "/v1/callbacks/approval",
             json={
                 "task_id": str(task_id),
                 "action": {"action": "click", "x": 100, "y": 200},
@@ -111,7 +111,7 @@ class TestApprovalCallback:
 
         # Don't respond — let it timeout (1 second)
         resp = await client.post(
-            "/callbacks/approval",
+            "/v1/callbacks/approval",
             json={
                 "task_id": str(task_id),
                 "action": {"action": "click", "x": 100, "y": 200},
@@ -129,7 +129,7 @@ class TestApprovalCallback:
         task_id = uuid4()
 
         resp = await client.post(
-            "/callbacks/approval",
+            "/v1/callbacks/approval",
             json={
                 "task_id": str(task_id),
                 "action": {"action": "click", "x": 100, "y": 200},
@@ -148,7 +148,7 @@ class TestNotifyCallback:
         task_id = uuid4()
 
         resp = await client.post(
-            "/callbacks/notify",
+            "/v1/callbacks/notify",
             json={
                 "task_id": str(task_id),
                 "action": {"action": "type", "text": "hello"},
@@ -167,7 +167,7 @@ class TestNotifyCallback:
         client, _ = client_no_tray
 
         resp = await client.post(
-            "/callbacks/notify",
+            "/v1/callbacks/notify",
             json={
                 "task_id": str(uuid4()),
                 "action": {"action": "type"},
@@ -183,7 +183,7 @@ class TestTaskUpdateCallback:
         client, bus, _ = client_with_tray
 
         resp = await client.post(
-            "/callbacks/task-update",
+            "/v1/callbacks/task-update",
             json={
                 "task_id": str(uuid4()),
                 "status": "running",

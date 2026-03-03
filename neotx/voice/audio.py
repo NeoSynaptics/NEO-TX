@@ -21,10 +21,12 @@ class AudioStream:
         sample_rate: int = 16000,
         channels: int = 1,
         chunk_size: int = 512,
+        gain: float = 1.0,
     ) -> None:
         self.sample_rate = sample_rate
         self.channels = channels
         self.chunk_size = chunk_size
+        self.gain = gain
         self._stream = None
 
     async def start(self) -> None:

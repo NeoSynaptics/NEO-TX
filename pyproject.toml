@@ -7,7 +7,7 @@ packages = ["neotx", "config"]
 
 [project]
 name = "neo-tx"
-version = "0.1.0"
+version = "0.4.0"
 description = "Smart AI interface — voice, fast GPU models, tray widget, approval gates"
 requires-python = ">=3.12"
 license = "MIT"
@@ -46,6 +46,7 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "ruff",
+    "pip-tools",
 ]
 tray-dev = [
     "neo-tx[tray]",

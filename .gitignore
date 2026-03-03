@@ -43,5 +43,9 @@ data/
 *.log
 logs/
 
+# Model weights (downloaded at runtime)
+models/piper/*.onnx
+models/piper/*.onnx.json
+
 # noVNC vendor (cloned separately)
 vendor/

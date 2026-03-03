@@ -77,21 +77,21 @@ async def client():
 
 class TestChatEndpoint:
     async def test_chat_conversation(self, client):
-        resp = await client.post("/chat/", json={"message": "What is Python?"})
+        resp = await client.post("/v1/chat/", json={"message": "What is Python?"})
         assert resp.status_code == 200
         data = resp.json()
         assert "Hello! How can I help?" in data["message"]
         assert data["model_used"] == "qwen3:14b"
 
     async def test_chat_gui_task(self, client):
-        resp = await client.post("/chat/", json={"message": "open Chrome"})
+        resp = await client.post("/v1/chat/", json={"message": "open Chrome"})
         assert resp.status_code == 200
         data = resp.json()
         assert "Task submitted" in data["message"]
         assert data["model_used"] == "ui-tars:72b"
 
     async def test_chat_system_command(self, client):
-        resp = await client.post("/chat/", json={"message": "pause"})
+        resp = await client.post("/v1/chat/", json={"message": "pause"})
         assert resp.status_code == 200
         data = resp.json()
         assert "System command" in data["message"]
@@ -99,7 +99,7 @@ class TestChatEndpoint:
     async def test_chat_preserves_conversation_id(self, client):
         cid = str(uuid4())
         resp = await client.post(
-            "/chat/", json={"message": "hello", "conversation_id": cid}
+            "/v1/chat/", json={"message": "hello", "conversation_id": cid}
         )
         assert resp.status_code == 200
         assert resp.json()["conversation_id"] == cid
@@ -108,11 +108,11 @@ class TestChatEndpoint:
 class TestChatStreamEndpoint:
     async def test_stream_returns_sse(self, client):
         """Stream endpoint should return text/event-stream content type."""
-        resp = await client.post("/chat/stream", json={"message": "open Chrome"})
+        resp = await client.post("/v1/chat/stream", json={"message": "open Chrome"})
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers["content-type"]
 
     async def test_stream_contains_data_lines(self, client):
-        resp = await client.post("/chat/stream", json={"message": "open Chrome"})
+        resp = await client.post("/v1/chat/stream", json={"message": "open Chrome"})
         body = resp.text
         assert "data:" in body

@@ -15,7 +15,7 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_approval_callback(client):
-    resp = await client.post("/callbacks/approval", json={
+    resp = await client.post("/v1/callbacks/approval", json={
         "task_id": "00000000-0000-0000-0000-000000000001",
         "action": {
             "action": "click", "x": 340, "y": 200,
@@ -34,7 +34,7 @@ async def test_approval_callback(client):
 
 @pytest.mark.asyncio
 async def test_notify_callback(client):
-    resp = await client.post("/callbacks/notify", json={
+    resp = await client.post("/v1/callbacks/notify", json={
         "task_id": "00000000-0000-0000-0000-000000000001",
         "action": {
             "action": "click", "x": 50, "y": 50,
@@ -49,7 +49,7 @@ async def test_notify_callback(client):
 
 @pytest.mark.asyncio
 async def test_task_update_callback(client):
-    resp = await client.post("/callbacks/task-update", json={
+    resp = await client.post("/v1/callbacks/task-update", json={
         "task_id": "00000000-0000-0000-0000-000000000001",
         "status": "completed",
         "current_step": 5,

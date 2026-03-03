@@ -3,7 +3,7 @@
 import pytest
 from uuid import uuid4
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from neotx.bridge.alchemy_client import AlchemyClient
 
@@ -28,16 +28,11 @@ async def test_submit_task():
     mock_resp = _mock_response(json_data={
         "task_id": task_id, "status": "pending", "created_at": now,
     })
+    client._client.post = AsyncMock(return_value=mock_resp)
 
-    with patch("httpx.AsyncClient") as MockClient:
-        mock_ctx = AsyncMock()
-        mock_ctx.post = AsyncMock(return_value=mock_resp)
-        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        result = await client.submit_task("send email")
-        assert str(result.task_id) == task_id
-        assert result.status.value == "pending"
+    result = await client.submit_task("send email")
+    assert str(result.task_id) == task_id
+    assert result.status.value == "pending"
 
 
 @pytest.mark.asyncio
@@ -50,16 +45,11 @@ async def test_task_status():
         "task_id": str(task_id), "status": "running",
         "current_step": 3, "created_at": now, "updated_at": now,
     })
+    client._client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("httpx.AsyncClient") as MockClient:
-        mock_ctx = AsyncMock()
-        mock_ctx.get = AsyncMock(return_value=mock_resp)
-        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        result = await client.task_status(task_id)
-        assert result.task_id == task_id
-        assert result.current_step == 3
+    result = await client.task_status(task_id)
+    assert result.task_id == task_id
+    assert result.current_step == 3
 
 
 @pytest.mark.asyncio
@@ -68,15 +58,10 @@ async def test_screenshot():
     png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
     mock_resp = _mock_response(content=png_bytes, content_type="image/png")
+    client._client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("httpx.AsyncClient") as MockClient:
-        mock_ctx = AsyncMock()
-        mock_ctx.get = AsyncMock(return_value=mock_resp)
-        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        result = await client.screenshot()
-        assert result[:4] == b"\x89PNG"
+    result = await client.screenshot()
+    assert result[:4] == b"\x89PNG"
 
 
 @pytest.mark.asyncio
@@ -87,13 +72,16 @@ async def test_models():
         "models": [{"name": "ui-tars:72b", "loaded": False, "size_gb": 42.0}],
         "total_ram_gb": 128.0, "available_ram_gb": 86.0,
     })
+    client._client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("httpx.AsyncClient") as MockClient:
-        mock_ctx = AsyncMock()
-        mock_ctx.get = AsyncMock(return_value=mock_resp)
-        MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-        MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+    result = await client.models()
+    assert len(result.models) == 1
+    assert result.models[0].name == "ui-tars:72b"
 
-        result = await client.models()
-        assert len(result.models) == 1
-        assert result.models[0].name == "ui-tars:72b"
+
+@pytest.mark.asyncio
+async def test_close():
+    client = AlchemyClient()
+    client._client.aclose = AsyncMock()
+    await client.close()
+    client._client.aclose.assert_awaited_once()

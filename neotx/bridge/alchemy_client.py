@@ -32,6 +32,14 @@ class AlchemyClient:
     def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=self.timeout,
+        )
+
+    async def close(self) -> None:
+        """Close the underlying HTTP connection pool."""
+        await self._client.aclose()
 
     # --- Vision (GUI tasks) ---
 
@@ -43,13 +51,12 @@ class AlchemyClient:
     ) -> VisionTaskResponse:
         """Submit a GUI task for Alchemy's vision agent."""
         req = VisionTaskRequest(goal=goal, callback_url=callback_url, context=context)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(
-                f"{self.base_url}/vision/task",
-                json=req.model_dump(mode="json"),
-            )
-            resp.raise_for_status()
-            return VisionTaskResponse.model_validate(resp.json())
+        resp = await self._client.post(
+            "/v1/vision/task",
+            json=req.model_dump(mode="json"),
+        )
+        resp.raise_for_status()
+        return VisionTaskResponse.model_validate(resp.json())
 
     async def analyze(
         self,
@@ -61,20 +68,18 @@ class AlchemyClient:
         req = VisionAnalyzeRequest(
             screenshot_b64=screenshot_b64, goal=goal, context=context
         )
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(
-                f"{self.base_url}/vision/analyze",
-                json=req.model_dump(mode="json"),
-            )
-            resp.raise_for_status()
-            return VisionAnalyzeResponse.model_validate(resp.json())
+        resp = await self._client.post(
+            "/v1/vision/analyze",
+            json=req.model_dump(mode="json"),
+        )
+        resp.raise_for_status()
+        return VisionAnalyzeResponse.model_validate(resp.json())
 
     async def task_status(self, task_id: UUID) -> TaskStatusResponse:
         """Poll the current status of a vision task."""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(f"{self.base_url}/vision/task/{task_id}/status")
-            resp.raise_for_status()
-            return TaskStatusResponse.model_validate(resp.json())
+        resp = await self._client.get(f"/v1/vision/task/{task_id}/status")
+        resp.raise_for_status()
+        return TaskStatusResponse.model_validate(resp.json())
 
     async def approve_task(
         self,
@@ -84,13 +89,12 @@ class AlchemyClient:
     ) -> ApprovalDecisionResponse:
         """Approve an APPROVE-tier action."""
         req = ApprovalDecision(decided_by=decided_by, reason=reason)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(
-                f"{self.base_url}/vision/task/{task_id}/approve",
-                json=req.model_dump(mode="json"),
-            )
-            resp.raise_for_status()
-            return ApprovalDecisionResponse.model_validate(resp.json())
+        resp = await self._client.post(
+            f"/v1/vision/task/{task_id}/approve",
+            json=req.model_dump(mode="json"),
+        )
+        resp.raise_for_status()
+        return ApprovalDecisionResponse.model_validate(resp.json())
 
     async def deny_task(
         self,
@@ -100,13 +104,12 @@ class AlchemyClient:
     ) -> ApprovalDecisionResponse:
         """Deny an APPROVE-tier action."""
         req = ApprovalDecision(decided_by=decided_by, reason=reason)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(
-                f"{self.base_url}/vision/task/{task_id}/deny",
-                json=req.model_dump(mode="json"),
-            )
-            resp.raise_for_status()
-            return ApprovalDecisionResponse.model_validate(resp.json())
+        resp = await self._client.post(
+            f"/v1/vision/task/{task_id}/deny",
+            json=req.model_dump(mode="json"),
+        )
+        resp.raise_for_status()
+        return ApprovalDecisionResponse.model_validate(resp.json())
 
     # --- Shadow Desktop ---
 
@@ -117,40 +120,35 @@ class AlchemyClient:
     ) -> ShadowStartResponse:
         """Start the shadow desktop."""
         req = ShadowStartRequest(resolution=resolution, display_num=display_num)
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(
-                f"{self.base_url}/shadow/start",
-                json=req.model_dump(mode="json"),
-            )
-            resp.raise_for_status()
-            return ShadowStartResponse.model_validate(resp.json())
+        resp = await self._client.post(
+            "/v1/shadow/start",
+            json=req.model_dump(mode="json"),
+        )
+        resp.raise_for_status()
+        return ShadowStartResponse.model_validate(resp.json())
 
     async def shadow_stop(self) -> ShadowStopResponse:
         """Stop the shadow desktop."""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(f"{self.base_url}/shadow/stop")
-            resp.raise_for_status()
-            return ShadowStopResponse.model_validate(resp.json())
+        resp = await self._client.post("/v1/shadow/stop")
+        resp.raise_for_status()
+        return ShadowStopResponse.model_validate(resp.json())
 
     async def shadow_health(self) -> ShadowHealthResponse:
         """Check shadow desktop service status."""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(f"{self.base_url}/shadow/health")
-            resp.raise_for_status()
-            return ShadowHealthResponse.model_validate(resp.json())
+        resp = await self._client.get("/v1/shadow/health")
+        resp.raise_for_status()
+        return ShadowHealthResponse.model_validate(resp.json())
 
     async def screenshot(self) -> bytes:
         """Capture a screenshot from the shadow desktop (raw PNG bytes)."""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(f"{self.base_url}/shadow/screenshot")
-            resp.raise_for_status()
-            return resp.content
+        resp = await self._client.get("/v1/shadow/screenshot")
+        resp.raise_for_status()
+        return resp.content
 
     # --- Models ---
 
     async def models(self) -> ModelsResponse:
         """Get CPU model status and RAM usage."""
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(f"{self.base_url}/models")
-            resp.raise_for_status()
-            return ModelsResponse.model_validate(resp.json())
+        resp = await self._client.get("/v1/models")
+        resp.raise_for_status()
+        return ModelsResponse.model_validate(resp.json())

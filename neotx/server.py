@@ -6,10 +6,14 @@ The user's single contact point. Delegates GUI work to Alchemy silently.
 import logging
 from contextlib import asynccontextmanager
 
+from config.logging import setup_logging
 from fastapi import FastAPI
+
+setup_logging()
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import settings
+from neotx import __version__
 from neotx.api import callbacks, chat, voice
 from neotx.models.conversation import ConversationManager
 from neotx.models.provider import AlchemyProvider, OllamaProvider
@@ -146,7 +150,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NEO-TX",
     description="Smart AI interface — voice, conversation, approval gates, tray widget",
-    version="0.4.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -158,11 +162,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(callbacks.router)
-app.include_router(chat.router)
-app.include_router(voice.router)
+app.include_router(callbacks.router, prefix="/v1")
+app.include_router(chat.router, prefix="/v1")
+app.include_router(voice.router, prefix="/v1")
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.4.0"}
+    return {"status": "ok", "version": __version__}
