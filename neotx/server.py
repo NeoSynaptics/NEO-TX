@@ -211,6 +211,10 @@ async def lifespan(app: FastAPI):
                 settings.tts_engine,
                 settings.gpu_mode,
             )
+
+            # Auto-start voice pipeline so wake word listens immediately
+            await app.state.voice_pipeline.start()
+            logger.info("Voice pipeline auto-started")
         except ImportError:
             logger.warning("Voice dependencies not installed — run: pip install -e '.[voice]'")
         except Exception:
