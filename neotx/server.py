@@ -181,6 +181,14 @@ async def lifespan(app: FastAPI):
                 )
                 await vram_mgr.start()
                 app.state.vram_manager = vram_mgr
+            else:
+                # Dual-GPU: pre-start Fish Speech and pre-load Whisper
+                # so they're warm and ready when voice pipeline starts.
+                if fish_process:
+                    logger.info("Dual-GPU: pre-starting Fish Speech...")
+                    await fish_process.start()
+                logger.info("Dual-GPU: pre-loading Whisper...")
+                await stt.load()
 
             app.state.voice_pipeline = VoicePipeline(
                 router=app.state.router,
