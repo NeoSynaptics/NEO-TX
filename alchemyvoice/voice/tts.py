@@ -1,9 +1,10 @@
-"""Text-to-speech — Piper TTS + Fish Speech 1.5.
+"""Text-to-speech — Piper TTS, Fish Speech 1.5, Kokoro-82M.
 
 PiperTTS: CPU-only (~50MB), robotic but zero-GPU.
 FishSpeechTTS: GPU via subprocess HTTP server, near-human quality.
+KokoroTTS: Kokoro-82M via Kokoro-FastAPI, ultra-fast (~0.3s/sentence), ~200MB VRAM.
 
-Both share the same interface: load, speak, speak_streamed, _synthesize, is_loaded.
+All share the same interface: load, speak, speak_streamed, _synthesize, is_loaded.
 """
 
 from __future__ import annotations
@@ -331,6 +332,153 @@ class FishSpeechTTS:
 
         wav_buffer = io.BytesIO(resp.content)
         with wave.open(wav_buffer, "rb") as wav_in:
+            frames = wav_in.readframes(wav_in.getnframes())
+            sample_width = wav_in.getsampwidth()
+            if sample_width == 2:
+                return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+            elif sample_width == 4:
+                return np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+            else:
+                raise ValueError(f"Unsupported WAV sample width: {sample_width}")
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._client is not None
+
+    async def close(self) -> None:
+        """Close the httpx client."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+
+class KokoroTTS:
+    """Synthesizes text to speech using Kokoro-82M via Kokoro-FastAPI.
+
+    Ultra-fast (~0.3s/sentence), OpenAI-compatible API on localhost.
+    Same interface as PiperTTS/FishSpeechTTS for drop-in replacement.
+    """
+
+    def __init__(
+        self,
+        base_url: str = "http://127.0.0.1:8880",
+        voice: str = "af_heart",
+        sample_rate: int = 24000,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._voice = voice
+        self._sample_rate = sample_rate
+        self._client = None  # httpx.AsyncClient
+
+    async def load(self, audio_stream: AudioStream | None = None) -> None:
+        """Initialize HTTP client for Kokoro-FastAPI."""
+        if self._client is not None:
+            return
+
+        import httpx
+
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0))
+        logger.info("KokoroTTS loaded (endpoint=%s, voice=%s)", self._base_url, self._voice)
+
+    async def speak(self, text: str, audio_stream: AudioStream | None = None) -> None:
+        """Synthesize full text and play it."""
+        if not self._client:
+            await self.load()
+
+        audio = await self._synthesize(text)
+        if audio is not None and audio_stream:
+            audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+
+    async def speak_streamed(
+        self,
+        chunks: AsyncIterator[str],
+        audio_stream: AudioStream | None = None,
+        flush_timeout: float = 0.5,
+    ) -> None:
+        """Buffer streaming text into sentences, synthesize and play each."""
+        if not self._client:
+            await self.load()
+
+        buffer = ""
+        _DONE = object()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def _fill_queue():
+            try:
+                async for text in chunks:
+                    await queue.put(text)
+            except Exception:
+                logger.exception("Error reading response chunks")
+            finally:
+                await queue.put(_DONE)
+
+        fill_task = asyncio.create_task(_fill_queue())
+
+        try:
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=flush_timeout)
+                except asyncio.TimeoutError:
+                    if buffer.strip():
+                        audio = await self._synthesize(buffer.strip())
+                        if audio is not None and audio_stream:
+                            audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+                        buffer = ""
+                    continue
+
+                if item is _DONE:
+                    break
+
+                buffer += item
+
+                while True:
+                    match = _SENTENCE_END.search(buffer)
+                    if not match:
+                        break
+
+                    end_idx = match.end()
+                    sentence = buffer[:end_idx].strip()
+                    buffer = buffer[end_idx:]
+
+                    if sentence:
+                        audio = await self._synthesize(sentence)
+                        if audio is not None and audio_stream:
+                            audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+
+            remaining = buffer.strip()
+            if remaining:
+                audio = await self._synthesize(remaining)
+                if audio is not None and audio_stream:
+                    audio_stream.play_audio(audio, sample_rate=self._sample_rate)
+        finally:
+            if not fill_task.done():
+                fill_task.cancel()
+                try:
+                    await fill_task
+                except asyncio.CancelledError:
+                    pass
+
+    async def _synthesize(self, text: str) -> np.ndarray | None:
+        """Send text to Kokoro-FastAPI, receive WAV, return float32 array."""
+        if not text.strip() or not self._client:
+            return None
+
+        payload = {
+            "model": "kokoro",
+            "input": text,
+            "voice": self._voice,
+            "response_format": "wav",
+        }
+
+        resp = await self._client.post(
+            f"{self._base_url}/v1/audio/speech",
+            json=payload,
+        )
+        resp.raise_for_status()
+
+        wav_buffer = io.BytesIO(resp.content)
+        with wave.open(wav_buffer, "rb") as wav_in:
+            self._sample_rate = wav_in.getframerate()
             frames = wav_in.readframes(wav_in.getnframes())
             sample_width = wav_in.getsampwidth()
             if sample_width == 2:

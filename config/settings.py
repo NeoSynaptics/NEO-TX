@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     voice_wake_threshold: float = 0.5       # openwakeword confidence threshold
 
     # --- TTS Engine ---
-    tts_engine: str = "piper"               # "piper" or "fish"
+    tts_engine: str = "piper"               # "piper", "fish", or "kokoro"
 
     # --- Fish Speech (only when tts_engine=fish) ---
     fish_speech_port: int = 8080
@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     fish_speech_chunk_length: int = 200
     fish_speech_python_exe: str = ""              # Path to Fish Speech conda env python
     fish_speech_dir: str = ""                     # Fish Speech repo directory
+
+    # --- Kokoro TTS (only when tts_engine=kokoro) ---
+    kokoro_host: str = "127.0.0.1"
+    kokoro_port: int = 8880
+    kokoro_voice: str = "af_heart"
 
     # --- GPU Mode ---
     gpu_mode: str = "single"                # "single" = VRAM swap, "dual" = all resident

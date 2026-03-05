@@ -162,6 +162,13 @@ async def lifespan(app: FastAPI):
                     reference_id=settings.fish_speech_reference_id or None,
                     chunk_length=settings.fish_speech_chunk_length,
                 )
+            elif settings.tts_engine == "kokoro":
+                from alchemyvoice.voice.tts import KokoroTTS
+
+                tts = KokoroTTS(
+                    base_url=f"http://{settings.kokoro_host}:{settings.kokoro_port}",
+                    voice=settings.kokoro_voice,
+                )
             else:
                 from alchemyvoice.voice.tts import PiperTTS
 
