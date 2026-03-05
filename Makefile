@@ -16,6 +16,6 @@ test:
 lock:
 	pip-compile pyproject.toml -o requirements-lock.txt --strip-extras
 
-# Run NEO-TX server
+# Run AlchemyVoice server
 server:
-	uvicorn neotx.server:app --host 127.0.0.1 --port 8100 --reload
+	uvicorn alchemyvoice.server:app --host 127.0.0.1 --port 8100 --reload

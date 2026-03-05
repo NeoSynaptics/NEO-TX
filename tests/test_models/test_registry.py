@@ -1,7 +1,7 @@
 """Tests for ModelRegistry — registration, lookup, defaults."""
 
-from neotx.models.registry import ModelRegistry
-from neotx.models.schemas import ModelCapability, ModelCard, ModelLocation, SpeedTier
+from alchemyvoice.models.registry import ModelRegistry
+from alchemyvoice.models.schemas import ModelCapability, ModelCard, ModelLocation, SpeedTier
 
 
 def _make_card(name: str, caps: list[ModelCapability], **kwargs) -> ModelCard:

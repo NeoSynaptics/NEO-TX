@@ -5,10 +5,10 @@ from uuid import uuid4
 
 import pytest
 
-from neotx.models.conversation import ConversationManager
-from neotx.models.provider import AlchemyProvider, OllamaProvider
-from neotx.models.registry import ModelRegistry
-from neotx.models.schemas import (
+from alchemyvoice.models.conversation import ConversationManager
+from alchemyvoice.models.provider import AlchemyProvider, OllamaProvider
+from alchemyvoice.models.registry import ModelRegistry
+from alchemyvoice.models.schemas import (
     ChatMessage,
     ChatRequest,
     ModelCapability,
@@ -17,8 +17,8 @@ from neotx.models.schemas import (
     RouteIntent,
     SpeedTier,
 )
-from neotx.router.cascade import ConversationToVisionCascade
-from neotx.router.router import SmartRouter
+from alchemyvoice.router.cascade import ConversationToVisionCascade
+from alchemyvoice.router.router import SmartRouter
 
 
 @pytest.fixture

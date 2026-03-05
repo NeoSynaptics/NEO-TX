@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
-from neotx.voice.listener import SpeechListener, _FRAME_SAMPLES
+from alchemyvoice.voice.listener import SpeechListener, _FRAME_SAMPLES
 
 
 def _make_pcm_chunk(samples: int = 512) -> bytes:

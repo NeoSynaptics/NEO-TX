@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from neotx.schemas import (
+from alchemyvoice.schemas import (
     ActionTier,
     ApprovalDecision,
     ApprovalDecisionResponse,

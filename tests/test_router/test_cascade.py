@@ -1,7 +1,7 @@
 """Tests for CascadeStrategy — escalation signal detection."""
 
-from neotx.models.schemas import ModelLocation, RouteDecision, RouteIntent
-from neotx.router.cascade import ConversationToVisionCascade
+from alchemyvoice.models.schemas import ModelLocation, RouteDecision, RouteIntent
+from alchemyvoice.router.cascade import ConversationToVisionCascade
 
 
 def _conversation_decision(escalation_possible: bool = True) -> RouteDecision:

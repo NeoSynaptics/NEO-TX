@@ -3,12 +3,12 @@
 import threading
 from unittest.mock import MagicMock, patch
 
-from neotx.tray.events import TrayEventBus
+from alchemyvoice.tray.events import TrayEventBus
 
 
 class TestTrayManager:
     def test_init(self):
-        from neotx.tray.app import TrayManager
+        from alchemyvoice.tray.app import TrayManager
 
         bus = TrayEventBus()
         settings = MagicMock()
@@ -16,7 +16,7 @@ class TestTrayManager:
         assert mgr.is_running is False
 
     def test_start_creates_thread(self):
-        from neotx.tray.app import TrayManager
+        from alchemyvoice.tray.app import TrayManager
 
         bus = TrayEventBus()
         settings = MagicMock()
@@ -32,7 +32,7 @@ class TestTrayManager:
             mgr._thread.join(timeout=1)
 
     def test_double_start_ignored(self):
-        from neotx.tray.app import TrayManager
+        from alchemyvoice.tray.app import TrayManager
 
         bus = TrayEventBus()
         settings = MagicMock()
@@ -46,7 +46,7 @@ class TestTrayManager:
             mgr._thread.join(timeout=1)
 
     def test_stop_without_start(self):
-        from neotx.tray.app import TrayManager
+        from alchemyvoice.tray.app import TrayManager
 
         bus = TrayEventBus()
         settings = MagicMock()

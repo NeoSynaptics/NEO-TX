@@ -1,9 +1,9 @@
-"""Callback endpoint tests — verify NEO-TX accepts Alchemy callbacks."""
+"""Callback endpoint tests — verify AlchemyVoice accepts Alchemy callbacks."""
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from neotx.server import app
+from alchemyvoice.server import app
 
 
 @pytest.fixture

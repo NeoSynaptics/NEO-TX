@@ -7,8 +7,8 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from neotx.models.provider import AlchemyProvider, OllamaProvider
-from neotx.models.schemas import ChatMessage
+from alchemyvoice.models.provider import AlchemyProvider, OllamaProvider
+from alchemyvoice.models.schemas import ChatMessage
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +97,7 @@ class TestOllamaProvider:
 class TestAlchemyProvider:
     async def test_start_creates_client(self):
         provider = AlchemyProvider(base_url="http://test:8000")
-        with patch("neotx.models.provider.AlchemyProvider.start", new_callable=AsyncMock):
+        with patch("alchemyvoice.models.provider.AlchemyProvider.start", new_callable=AsyncMock):
             await provider.start()
 
     async def test_generate_submits_task(self):

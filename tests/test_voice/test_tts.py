@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
-from neotx.voice.tts import PiperTTS
+from alchemyvoice.voice.tts import PiperTTS
 
 
 def _make_wav_bytes(samples: int = 1000, sample_rate: int = 22050) -> bytes:

@@ -3,7 +3,7 @@
 import asyncio
 from unittest.mock import MagicMock
 
-from neotx.tray.events import TrayEvent, TrayEventBus, TrayMessage
+from alchemyvoice.tray.events import TrayEvent, TrayEventBus, TrayMessage
 
 
 class TestTrayEventBus:

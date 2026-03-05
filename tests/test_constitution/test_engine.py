@@ -1,8 +1,8 @@
 """Tests for ConstitutionEngine — full rule evaluation pipeline."""
 
-from neotx.schemas import ActionTier, VisionAction
-from neotx.constitution.engine import ConstitutionEngine
-from neotx.constitution.rules import (
+from alchemyvoice.schemas import ActionTier, VisionAction
+from alchemyvoice.constitution.engine import ConstitutionEngine
+from alchemyvoice.constitution.rules import (
     ConstitutionalRule,
     DestructiveActionRule,
     FinancialActionRule,

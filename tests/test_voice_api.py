@@ -14,8 +14,8 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from neotx.voice.pipeline import PipelineState
-from neotx.server import app
+from alchemyvoice.voice.pipeline import PipelineState
+from alchemyvoice.server import app
 
 
 @pytest_asyncio.fixture

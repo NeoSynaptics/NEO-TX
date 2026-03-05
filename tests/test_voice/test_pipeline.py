@@ -7,9 +7,9 @@ from uuid import uuid4
 import numpy as np
 import pytest
 
-from neotx.models.schemas import StreamChunk
-from neotx.voice.pipeline import PipelineState, VoicePipeline
-from neotx.voice.vram_manager import GPUMode, VRAMManager
+from alchemyvoice.models.schemas import StreamChunk
+from alchemyvoice.voice.pipeline import PipelineState, VoicePipeline
+from alchemyvoice.voice.vram_manager import GPUMode, VRAMManager
 
 
 def _make_pipeline(

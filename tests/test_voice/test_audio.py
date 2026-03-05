@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from neotx.voice.audio import AudioStream
+from alchemyvoice.voice.audio import AudioStream
 
 
 @pytest.fixture

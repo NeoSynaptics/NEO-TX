@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import numpy as np
 import pytest
 
-from neotx.voice.tts import FishSpeechTTS
+from alchemyvoice.voice.tts import FishSpeechTTS
 
 
 def _make_wav_bytes(samples: int = 1000, sample_rate: int = 44100) -> bytes:

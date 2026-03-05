@@ -1,7 +1,7 @@
 """Tests for constitutional rules — individual rule evaluation."""
 
-from neotx.schemas import ActionTier, VisionAction
-from neotx.constitution.rules import (
+from alchemyvoice.schemas import ActionTier, VisionAction
+from alchemyvoice.constitution.rules import (
     AuthenticationRule,
     CommunicationRule,
     DestructiveActionRule,

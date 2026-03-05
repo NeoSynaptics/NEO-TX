@@ -1,7 +1,7 @@
 """Tests for TaskPlanner — plan lifecycle and execution tracking."""
 
-from neotx.planner.decomposer import SubTaskStatus
-from neotx.planner.planner import TaskPlanner
+from alchemyvoice.planner.decomposer import SubTaskStatus
+from alchemyvoice.planner.planner import TaskPlanner
 
 
 class TestTaskPlanner:

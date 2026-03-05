@@ -7,10 +7,10 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from neotx.models.conversation import ConversationManager
-from neotx.models.provider import AlchemyProvider, OllamaProvider
-from neotx.models.registry import ModelRegistry
-from neotx.models.schemas import (
+from alchemyvoice.models.conversation import ConversationManager
+from alchemyvoice.models.provider import AlchemyProvider, OllamaProvider
+from alchemyvoice.models.registry import ModelRegistry
+from alchemyvoice.models.schemas import (
     ChatResponse,
     ModelCapability,
     ModelCard,
@@ -19,8 +19,8 @@ from neotx.models.schemas import (
     RouteIntent,
     SpeedTier,
 )
-from neotx.router.router import SmartRouter
-from neotx.server import app
+from alchemyvoice.router.router import SmartRouter
+from alchemyvoice.server import app
 
 
 @pytest_asyncio.fixture

@@ -1,4 +1,4 @@
-# NEO-TX Roadmap
+# AlchemyVoice Roadmap
 
 ## Done
 
@@ -31,14 +31,14 @@ VisionAction aligned with Alchemy (drag, scroll, hotkey fields).
 
 - [ ] Pull `qwen3:14b` via Ollama
 - [ ] Wire the model provider to use real Ollama inference
-- [ ] Test: user says "open spotify and play music" → NEO-TX responds "On it!" → delegates to Alchemy
-- [ ] Test: user says "what's the weather?" → NEO-TX answers directly (no Alchemy needed)
+- [ ] Test: user says "open spotify and play music" → AlchemyVoice responds "On it!" → delegates to Alchemy
+- [ ] Test: user says "what's the weather?" → AlchemyVoice answers directly (no Alchemy needed)
 - [ ] Verify the router correctly classifies direct-answer vs shadow-desktop tasks
 
 ### Phase 6 — Live End-to-End
 **Goal:** Full loop from voice to visible action.
 
-- [ ] Start both servers (Alchemy :8000, NEO-TX :8100)
+- [ ] Start both servers (Alchemy :8000, AlchemyVoice :8100)
 - [ ] Say "Hey Neo, open Firefox and go to google.com"
 - [ ] Watch: voice → STT → classify → delegate to Alchemy → shadow desktop executes → noVNC shows it → tray reports "Done!"
 - [ ] Test approval flow: "Hey Neo, send an email" → Alchemy pauses → tray shows approval dialog → user approves/denies
@@ -53,7 +53,7 @@ VisionAction aligned with Alchemy (drag, scroll, hotkey fields).
 
 ---
 
-## Not NEO-TX's Job
+## Not AlchemyVoice's Job
 
 These belong to Alchemy:
 - Shadow desktop (WSL2, Xvfb, Fluxbox)

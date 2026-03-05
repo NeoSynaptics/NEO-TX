@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from neotx.voice.fish_speech import FishSpeechProcess
+from alchemyvoice.voice.fish_speech import FishSpeechProcess
 
 
 class TestFishSpeechProcess:

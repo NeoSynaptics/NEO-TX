@@ -1,4 +1,4 @@
-"""Centralized logging configuration for NEO-TX.
+"""Centralized logging configuration for AlchemyVoice.
 
 Call ``setup_logging()`` once at server startup to configure structured
 logging with level control via the ``LOG_LEVEL`` environment variable.

@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from neotx.models.conversation import ConversationManager, DEFAULT_SYSTEM_PROMPT
+from alchemyvoice.models.conversation import ConversationManager, DEFAULT_SYSTEM_PROMPT
 
 
 class TestBasicOperations:

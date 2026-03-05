@@ -5,7 +5,7 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-from neotx.bridge.alchemy_client import AlchemyClient
+from alchemyvoice.bridge.alchemy_client import AlchemyClient
 
 
 def _mock_response(json_data=None, content=b"", status_code=200, content_type="application/json"):

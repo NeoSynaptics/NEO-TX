@@ -1,4 +1,4 @@
-"""NEO-TX configuration — Pydantic Settings with .env support."""
+"""AlchemyVoice configuration — Pydantic Settings with .env support."""
 
 from pydantic_settings import BaseSettings
 
@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     knowledge_enabled: bool = True
     knowledge_max_docs: int = 3
 
-    # --- NEO-TX Server ---
+    # --- AlchemyVoice Server ---
     host: str = "127.0.0.1"
     port: int = 8100
     log_level: str = "INFO"

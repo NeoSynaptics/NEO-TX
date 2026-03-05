@@ -9,9 +9,9 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from neotx.schemas import ActionTier, VisionAction
-from neotx.server import app
-from neotx.tray.events import TrayEvent, TrayEventBus
+from alchemyvoice.schemas import ActionTier, VisionAction
+from alchemyvoice.server import app
+from alchemyvoice.tray.events import TrayEvent, TrayEventBus
 
 
 @pytest_asyncio.fixture

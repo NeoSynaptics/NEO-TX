@@ -1,8 +1,8 @@
-# NEO-TX: Implementation Plan
+# AlchemyVoice: Implementation Plan
 
 ## Context
 
-NEO-TX is the smart user-facing AI interface. It handles voice, conversation (14B GPU model), tray widget, and approval gates. For heavy GUI work, it delegates to [Alchemy](https://github.com/NeoSynaptics/Alchemy) (CPU-side shadow desktop + UI-TARS-72B).
+AlchemyVoice is the smart user-facing AI interface. It handles voice, conversation (14B GPU model), tray widget, and approval gates. For heavy GUI work, it delegates to [Alchemy](https://github.com/NeoSynaptics/Alchemy) (CPU-side shadow desktop + UI-TARS-72B).
 
 **Local-first.** No cloud APIs. GPU models for fast interaction, CPU models for heavy lifting.
 
@@ -11,7 +11,7 @@ NEO-TX is the smart user-facing AI interface. It handles voice, conversation (14
 ## Architecture
 
 ```
-NEO-TX (GPU side, port 8100)          Alchemy (CPU side, port 8000)
+AlchemyVoice (GPU side, port 8100)          Alchemy (CPU side, port 8000)
 ┌────────────────────────────┐        ┌────────────────────────────┐
 │  Voice pipeline            │        │  Shadow desktop (WSL2)     │
 │  14B conversational model  │  HTTP  │  UI-TARS-72B agent loop    │
@@ -25,7 +25,7 @@ NEO-TX (GPU side, port 8100)          Alchemy (CPU side, port 8000)
 
 | Resource | Owner | What |
 |----------|-------|------|
-| GPU (12GB VRAM) | **NEO-TX** | 14B conversational + Whisper + small models |
+| GPU (12GB VRAM) | **AlchemyVoice** | 14B conversational + Whisper + small models |
 | CPU (128GB RAM) | **Alchemy** | UI-TARS-72B (~42GB) + shadow desktop |
 
 GPU and CPU work in parallel — never block each other.
@@ -38,12 +38,12 @@ GPU and CPU work in parallel — never block each other.
 **Goal:** "Hey Neo" → Whisper STT → text response → Piper TTS.
 
 **Build:**
-- `neotx/voice/wake_word.py` — openWakeWord ("hey_neo", CPU, ~10MB)
-- `neotx/voice/listener.py` — faster-whisper (large-v3, CUDA, on-demand)
-- `neotx/voice/speaker.py` — Piper TTS (CPU, en_US-lessac-medium)
-- `neotx/voice/pipeline.py` — VAD → STT → 14B model → TTS
+- `alchemyvoice/voice/wake_word.py` — openWakeWord ("hey_neo", CPU, ~10MB)
+- `alchemyvoice/voice/listener.py` — faster-whisper (large-v3, CUDA, on-demand)
+- `alchemyvoice/voice/speaker.py` — Piper TTS (CPU, en_US-lessac-medium)
+- `alchemyvoice/voice/pipeline.py` — VAD → STT → 14B model → TTS
 
-**Milestone:** Say "Hey Neo, what time is it?" → NEO-TX speaks the answer.
+**Milestone:** Say "Hey Neo, what time is it?" → AlchemyVoice speaks the answer.
 
 **Tests:** ~20
 
@@ -53,9 +53,9 @@ GPU and CPU work in parallel — never block each other.
 **Goal:** Fast, semantic conversation via GPU model. NOT a coding model.
 
 **Build:**
-- `neotx/models/manager.py` — GPU model lifecycle (load, unload, health, VRAM tracking)
-- `neotx/models/conversation.py` — 14B chat interface (context window, history)
-- `neotx/router/task_router.py` — direct answer vs delegate to Alchemy
+- `alchemyvoice/models/manager.py` — GPU model lifecycle (load, unload, health, VRAM tracking)
+- `alchemyvoice/models/conversation.py` — 14B chat interface (context window, history)
+- `alchemyvoice/router/task_router.py` — direct answer vs delegate to Alchemy
 
 **Key:** 14B understands intent semantically. "Send my hours to work" → knows this needs GUI → routes to Alchemy. "What's 2+2?" → answers directly.
 
@@ -66,19 +66,19 @@ GPU and CPU work in parallel — never block each other.
 ---
 
 ### Phase 3 (Week 5-6): Alchemy Bridge + Approval Gates
-**Goal:** NEO-TX sends GUI tasks to Alchemy. Alchemy sends approval requests back.
+**Goal:** AlchemyVoice sends GUI tasks to Alchemy. Alchemy sends approval requests back.
 
 **Build:**
-- `neotx/bridge/client.py` — HTTP client to Alchemy (port 8000)
-- `neotx/bridge/ws_client.py` — WebSocket for real-time task updates + approval requests
-- `neotx/constitution/gates.py` — 3-tier classification (AUTO/NOTIFY/APPROVE)
-- `neotx/constitution/rules.py` — action → tier mapping
-- `neotx/constitution/audit.py` — JSONL audit log
+- `alchemyvoice/bridge/client.py` — HTTP client to Alchemy (port 8000)
+- `alchemyvoice/bridge/ws_client.py` — WebSocket for real-time task updates + approval requests
+- `alchemyvoice/constitution/gates.py` — 3-tier classification (AUTO/NOTIFY/APPROVE)
+- `alchemyvoice/constitution/rules.py` — action → tier mapping
+- `alchemyvoice/constitution/audit.py` — JSONL audit log
 
 **Tiers:**
 - **AUTO:** click, type, scroll — Alchemy executes silently
-- **NOTIFY:** open app, download — Alchemy executes, NEO-TX shows notification
-- **APPROVE:** send email, delete, purchase — Alchemy pauses, NEO-TX asks user
+- **NOTIFY:** open app, download — Alchemy executes, AlchemyVoice shows notification
+- **APPROVE:** send email, delete, purchase — Alchemy pauses, AlchemyVoice asks user
 
 **Milestone:** Send a GUI task → Alchemy runs it → approval dialog appears before dangerous action.
 
@@ -90,10 +90,10 @@ GPU and CPU work in parallel — never block each other.
 **Goal:** PyQt6 system tray with noVNC viewport and approval dialogs.
 
 **Build:**
-- `neotx/tray/widget.py` — QSystemTrayIcon (Show Viewport / Pause / Resume / Quit)
-- `neotx/tray/viewport.py` — QWebEngineView → `localhost:6080/vnc.html?autoconnect=true`
-- `neotx/tray/approval_dialog.py` — screenshot preview + approve/deny (60s timeout)
-- `neotx/tray/notifications.py` — toast notifications for NOTIFY-tier actions
+- `alchemyvoice/tray/widget.py` — QSystemTrayIcon (Show Viewport / Pause / Resume / Quit)
+- `alchemyvoice/tray/viewport.py` — QWebEngineView → `localhost:6080/vnc.html?autoconnect=true`
+- `alchemyvoice/tray/approval_dialog.py` — screenshot preview + approve/deny (60s timeout)
+- `alchemyvoice/tray/notifications.py` — toast notifications for NOTIFY-tier actions
 
 **Milestone:** Tray icon in system tray. Click → viewport shows shadow desktop. APPROVE actions show dialog with screenshot.
 
@@ -105,10 +105,10 @@ GPU and CPU work in parallel — never block each other.
 **Goal:** Intelligent task decomposition + small specialized GPU models for specific fast tasks.
 
 **Build:**
-- `neotx/planner/intent.py` — intent parsing via 14B model
-- `neotx/planner/decomposer.py` — complex task → ordered sub-steps
-- `neotx/models/specialized.py` — small model hot-swap framework (~2B models)
-- `neotx/planner/memory.py` — ChromaDB for task patterns
+- `alchemyvoice/planner/intent.py` — intent parsing via 14B model
+- `alchemyvoice/planner/decomposer.py` — complex task → ordered sub-steps
+- `alchemyvoice/models/specialized.py` — small model hot-swap framework (~2B models)
+- `alchemyvoice/planner/memory.py` — ChromaDB for task patterns
 
 **Future:** LoRA adapter hot-swap via llama.cpp (when Ollama supports it, or switch to llama.cpp server).
 
@@ -120,7 +120,7 @@ GPU and CPU work in parallel — never block each other.
 
 ## Alchemy Integration (API Boundary)
 
-| NEO-TX Need | Alchemy Endpoint |
+| AlchemyVoice Need | Alchemy Endpoint |
 |---|---|
 | Submit GUI task | `POST /vision/task` |
 | Single screenshot analysis | `POST /vision/analyze` |
@@ -135,7 +135,7 @@ GPU and CPU work in parallel — never block each other.
 ## Hardware Budget
 
 ```
-GPU (RTX 4070, 12GB VRAM) — owned by NEO-TX:
+GPU (RTX 4070, 12GB VRAM) — owned by AlchemyVoice:
   14B conversational (resident)   = ~9GB
   Whisper large-v3 (on-demand)    = ~3GB  (swaps with 14B)
   Small models (on-demand)        = ~2GB  (swaps)

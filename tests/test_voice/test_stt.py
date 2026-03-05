@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
-from neotx.voice.stt import WhisperSTT
+from alchemyvoice.voice.stt import WhisperSTT
 
 
 class TestWhisperSTT:
@@ -112,7 +112,7 @@ class TestWhisperSTT:
         new_model = MagicMock()
         new_model.transcribe.return_value = ([mock_segment], mock_info)
 
-        with patch("neotx.voice.stt.WhisperSTT.load") as mock_load:
+        with patch("alchemyvoice.voice.stt.WhisperSTT.load") as mock_load:
             async def fake_load():
                 stt._model = new_model
 

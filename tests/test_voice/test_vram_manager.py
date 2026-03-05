@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from neotx.voice.vram_manager import GPUMode, VRAMManager, VRAMSlot
+from alchemyvoice.voice.vram_manager import GPUMode, VRAMManager, VRAMSlot
 
 
 class TestVRAMManagerInit:

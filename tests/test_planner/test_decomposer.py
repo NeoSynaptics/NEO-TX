@@ -1,6 +1,6 @@
 """Tests for task decomposition — complexity heuristics and plan parsing."""
 
-from neotx.planner.decomposer import (
+from alchemyvoice.planner.decomposer import (
     SubTaskStatus,
     TaskPlan,
     is_complex_goal,

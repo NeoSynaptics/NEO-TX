@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
-from neotx.voice.wake_word import WakeWordDetector
+from alchemyvoice.voice.wake_word import WakeWordDetector
 
 
 class TestWakeWordDetector:

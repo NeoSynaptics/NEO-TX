@@ -1,7 +1,7 @@
 """Tests for intent classifier — keyword matching and tag parsing."""
 
-from neotx.models.schemas import RouteIntent
-from neotx.router.classifier import classify_from_keywords, parse_intent_tag
+from alchemyvoice.models.schemas import RouteIntent
+from alchemyvoice.router.classifier import classify_from_keywords, parse_intent_tag
 
 
 class TestKeywordClassifier:

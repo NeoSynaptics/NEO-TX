@@ -1,25 +1,25 @@
-# NEO-TX
+# AlchemyVoice
 
 **Smart AI interface — voice, fast GPU models, tray widget, approval gates.**
 
-NEO-TX is the user-facing layer. It talks to you (voice), understands you (14B conversational model on GPU), and delegates heavy GUI work to [Alchemy](https://github.com/NeoSynaptics/Alchemy) (CPU-side shadow desktop). You never interact with Alchemy directly — NEO-TX is your interface.
+AlchemyVoice is the user-facing layer. It talks to you (voice), understands you (14B conversational model on GPU), and delegates heavy GUI work to [Alchemy](https://github.com/NeoSynaptics/Alchemy) (CPU-side shadow desktop). You never interact with Alchemy directly — AlchemyVoice is your interface.
 
 ## How It Works
 
 ```
 You: "Hey Neo, send an email to my work with my hours this week."
 
-NEO-TX (GPU, fast):
+AlchemyVoice (GPU, fast):
 1. Wake word detected → Whisper STT → text
 2. 14B model interprets: "needs GUI work (email client)"
 3. Sends task to Alchemy → shadow desktop starts working
 4. Alchemy's agent loop fills in the email form...
-5. Before clicking "Send" → approval request comes back to NEO-TX
+5. Before clicking "Send" → approval request comes back to AlchemyVoice
 6. Tray popup: "Send email to work@company.com?" → you approve
 7. Alchemy clicks Send. Done. You never left your CAD/IDE/browser.
 ```
 
-## What NEO-TX Owns
+## What AlchemyVoice Owns
 
 | Responsibility | Detail |
 |----------------|--------|
@@ -30,7 +30,7 @@ NEO-TX (GPU, fast):
 | **Approval Gates** | AUTO / NOTIFY / APPROVE — non-bypassable constitution |
 | **User Conversation** | Chat, intent parsing, task routing |
 
-## What NEO-TX Does NOT Own
+## What AlchemyVoice Does NOT Own
 
 | Responsibility | Owner |
 |----------------|-------|
@@ -42,7 +42,7 @@ NEO-TX (GPU, fast):
 
 ```
 ┌───────────────────────────────────────────────┐
-│                  NEO-TX                       │
+│                  AlchemyVoice                       │
 │                  port 8100                    │
 │                                               │
 │  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
@@ -80,8 +80,8 @@ Non-bypassable. Every action logged to JSONL audit trail.
 
 ```bash
 # 1. Clone
-git clone https://github.com/NeoSynaptics/NEO-TX.git
-cd NEO-TX
+git clone https://github.com/NeoSynaptics/AlchemyVoice.git
+cd AlchemyVoice
 
 # 2. Install
 pip install -e ".[all,dev]"
@@ -103,7 +103,7 @@ make server   # → http://localhost:8100
 ## Project Structure
 
 ```
-neotx/
+alchemyvoice/
 ├── voice/          # Whisper STT + Piper TTS + wake word
 ├── models/         # GPU model management (14B + small specialized)
 ├── constitution/   # Defense Constitution (approval gates)
